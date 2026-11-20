@@ -83,15 +83,18 @@
             >
               立即购买
             </el-button>
+            <el-button size="large" :type="isFavorite ? 'warning' : 'default'" @click="toggleFavorite">
+              <el-icon><Star /></el-icon>{{ isFavorite ? '已收藏' : '收藏' }}
+            </el-button>
           </div>
           
           <div class="seller-info" v-if="product.seller">
             <div class="seller-title">卖家信息</div>
             <div class="seller-detail">
-              <el-avatar :size="40" :src="product.seller.avatar">
-                {{ product.seller.username?.substring(0, 1).toUpperCase() || 'U' }}
+              <el-avatar :size="40" :src="product.seller.avatar_url">
+                {{ product.seller.nickname?.substring(0, 1).toUpperCase() || 'U' }}
               </el-avatar>
-              <div class="seller-name">{{ product.seller.username }}</div>
+              <div class="seller-name">{{ product.seller.nickname }}</div>
             </div>
           </div>
         </div>
@@ -137,7 +140,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Picture, ShoppingCart } from '@element-plus/icons-vue'
+import { Picture, ShoppingCart, Star } from '@element-plus/icons-vue'
 import api from '../../utils/api'
 import ProductCard from '../../components/product/ProductCard.vue'
 import { useUserStore } from '../../stores/user'
@@ -153,6 +156,7 @@ const error = ref(false)
 const errorMessage = ref('')
 const quantity = ref(1)
 const relatedProducts = ref([])
+const isFavorite = ref(false)
 
 // 默认图片
 const defaultImage = 'https://via.placeholder.com/600x400?text=No+Image'
@@ -179,6 +183,11 @@ const fetchProductDetail = async () => {
     const response = await api.products.getDetail(productId)
     product.value = response.data
     fetchRelatedProducts()
+    // 登录后：记录浏览足迹并检查是否已收藏
+    if (userStore.isAuthenticated) {
+      api.history.record(productId).catch(() => {})
+      api.favorites.check(productId).then(r => { isFavorite.value = !!r.data?.is_favorite }).catch(() => {})
+    }
   } catch (err) {
     console.error('获取商品详情失败:', err)
     error.value = true
@@ -194,7 +203,7 @@ const fetchRelatedProducts = async () => {
   
   try {
     const response = await api.products.getList({
-      category_id: product.value.tag_id,
+      tag_id: product.value.tag_id,
       limit: 6,
       exclude_id: product.value.id
     })
@@ -207,8 +216,8 @@ const fetchRelatedProducts = async () => {
 // 添加到购物车
 const addToCart = async () => {
   if (!userStore.isAuthenticated) {
-    ElMessage.warning('请先登录')
-    router.push('/auth/login')
+    ElMessage.warning('请先登录再购买')
+    router.push({ path: '/auth/login', query: { redirect: route.fullPath } })
     return
   }
   
@@ -224,11 +233,33 @@ const addToCart = async () => {
   }
 }
 
+// 收藏/取消收藏（未登录引导登录）
+const toggleFavorite = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录再收藏')
+    router.push({ path: '/auth/login', query: { redirect: route.fullPath } })
+    return
+  }
+  try {
+    if (isFavorite.value) {
+      await api.favorites.remove(product.value.id)
+      isFavorite.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await api.favorites.add(product.value.id)
+      isFavorite.value = true
+      ElMessage.success('收藏成功')
+    }
+  } catch (err) {
+    ElMessage.error('操作失败')
+  }
+}
+
 // 立即购买
 const buyNow = async () => {
   if (!userStore.isAuthenticated) {
-    ElMessage.warning('请先登录')
-    router.push('/auth/login')
+    ElMessage.warning('请先登录再购买')
+    router.push({ path: '/auth/login', query: { redirect: route.fullPath } })
     return
   }
   

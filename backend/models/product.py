@@ -24,7 +24,9 @@ class Product(db.Model):
 
     # 外键
     seller_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True, comment='卖家ID')
-    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=True, comment='分类ID')
+    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=True, comment='平台分类ID')
+    seller_category_id = db.Column(db.Integer, db.ForeignKey('seller_categories.id'), nullable=True,
+                                   comment='卖家自定义分类ID')
 
     # 关系
     carts = db.relationship('Cart', backref='product', lazy='dynamic', cascade='all, delete-orphan')
@@ -93,7 +95,8 @@ class Product(db.Model):
             'status': self.status,
             'created_at': self.created_at.isoformat(),
             'published_at': self.published_at.isoformat() if self.published_at else None,
-            'tag_id': self.tag_id
+            'tag_id': self.tag_id,
+            'seller_category_id': self.seller_category_id
         }
 
         if with_seller and self.seller:

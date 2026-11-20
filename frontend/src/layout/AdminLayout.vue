@@ -28,7 +28,17 @@
           <el-icon><Goods /></el-icon>
           <template #title>商品管理</template>
         </el-menu-item>
-        
+
+        <el-menu-item index="/admin/sellers">
+          <el-icon><Shop /></el-icon>
+          <template #title>商家管理</template>
+        </el-menu-item>
+
+        <el-menu-item index="/admin/comments">
+          <el-icon><ChatDotRound /></el-icon>
+          <template #title>评论管理</template>
+        </el-menu-item>
+
         <el-menu-item index="/admin/orders">
           <el-icon><List /></el-icon>
           <template #title>订单管理</template>
@@ -69,10 +79,10 @@
         <div class="header-right">
           <el-dropdown trigger="click">
             <span class="user-dropdown">
-              <el-avatar :size="32" :src="userStore.userInfo?.avatar || ''">
-                {{ userStore.userInfo?.username?.substring(0, 1).toUpperCase() || 'A' }}
+              <el-avatar :size="32">
+                {{ userStore.adminInfo?.username?.substring(0, 1).toUpperCase() || 'A' }}
               </el-avatar>
-              <span>{{ userStore.userInfo?.username || '管理员' }}</span>
+              <span>{{ userStore.adminInfo?.username || '管理员' }}</span>
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
@@ -103,7 +113,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
 import {
-  Monitor, DataBoard, User, Goods, List,
+  Monitor, DataBoard, User, Goods, List, Shop, ChatDotRound,
   Fold, Expand, ArrowDown
 } from '@element-plus/icons-vue'
 
@@ -129,16 +139,18 @@ const toggleCollapse = () => {
 
 // 退出登录
 const handleLogout = () => {
-  userStore.logout()
+  userStore.adminLogout()
   ElMessage.success('已成功退出登录')
-  router.push('/auth/login')
+  router.push('/admin/login')
 }
+
+const hasAdminAuth = () => !!localStorage.getItem('admin_token')
 
 // 检查管理员权限
 onMounted(() => {
-  if (!userStore.isAuthenticated || !userStore.userInfo?.isAdmin) {
+  if (!hasAdminAuth()) {
     ElMessage.error('您没有管理员权限')
-    router.push('/auth/login')
+    router.push('/admin/login')
   }
 })
 
@@ -146,9 +158,9 @@ onMounted(() => {
 watch(
   () => route.path,
   (newPath) => {
-    if (newPath.startsWith('/admin') && (!userStore.isAuthenticated || !userStore.userInfo?.isAdmin)) {
+    if (newPath.startsWith('/admin') && !hasAdminAuth()) {
       ElMessage.error('您没有管理员权限')
-      router.push('/auth/login')
+      router.push('/admin/login')
     }
   }
 )

@@ -10,6 +10,7 @@ class Message(db.Model):
     content = db.Column(db.String(500), nullable=False, comment='消息内容，最多500字符')
     type = db.Column(Enum('系统', '交易'), default='系统', comment='消息类型(系统/交易)')
     is_read = db.Column(db.Boolean, default=False, comment='是否已读')
+    is_deleted = db.Column(db.Boolean, default=False, comment='是否软删除')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, comment='创建时间')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 

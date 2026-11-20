@@ -2,11 +2,10 @@ from flask import Blueprint, request, jsonify
 from ..models import db, Tag
 from ..utils.decorators import admin_required  # 管理员专用
 from sqlalchemy import desc
-from flask_caching import Cache
+from ..extensions import cache
 import logging
 
 tag_bp = Blueprint('tag', __name__)
-cache = Cache()
 logger = logging.getLogger(__name__)
 
 def json_response(success, message, data=None, status=200):
@@ -33,7 +32,7 @@ def get_tags():
     if search:
         query = query.filter(Tag.name.ilike(f'%{search}%'))
 
-    pagination = query.order_by(desc(Tag.create_time)).paginate(page=page, per_page=per_page)
+    pagination = query.order_by(desc(Tag.created_at)).paginate(page=page, per_page=per_page)
     logger.info(f"Fetched tags list (page={page}, search={search})")
     return json_response(True, '获取标签列表成功', {
         'items': [tag.to_dict() for tag in pagination.items],

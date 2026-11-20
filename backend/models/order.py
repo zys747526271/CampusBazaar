@@ -75,15 +75,27 @@ class Order(db.Model):
         db.session.add(self)
         db.session.commit()
 
-    def to_dict(self, with_address=False, with_user=False):
+    def to_dict(self, with_address=False, with_user=False, include_products=False,
+                include_address=False, include_user=False):
+        # include_* 为路由层使用的别名，兼容旧调用
+        with_address = with_address or include_address
+        with_user = with_user or include_user
+
+        import json
+        try:
+            products = json.loads(self.products_info) if self.products_info else []
+        except (ValueError, TypeError):
+            products = []
+
         data = {
             'id': self.id,
             'order_no': self.order_no,
             'total_amount': self.total_amount,
             'status': self.status,
-            'products': self.products,
+            'products': products if (include_products or with_address or with_user) else products,
+            'products_info': self.products_info,
             'payment_method': self.payment_method,
-            'create_time': self.create_time.isoformat(),
+            'create_time': self.create_time.isoformat() if self.create_time else None,
             'payment_time': self.payment_time.isoformat() if self.payment_time else None,
             'shipping_time': self.shipping_time.isoformat() if self.shipping_time else None,
             'complete_time': self.complete_time.isoformat() if self.complete_time else None,
@@ -98,7 +110,7 @@ class Order(db.Model):
             data['user'] = {
                 'id': self.user.id,
                 'nickname': self.user.nickname,
-                'phone': self.user.phone  # 需要解密
+                'phone': self.user.phone
             }
 
         return data

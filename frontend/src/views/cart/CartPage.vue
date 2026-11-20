@@ -39,9 +39,9 @@
           <el-checkbox v-model="item.selected" @change="updateSelectedState" />
           
           <div class="item-info">
-            <el-image :src="item.product.image || defaultImage" :alt="item.product.name" class="item-image" />
+            <el-image :src="item.product.images?.[0] || defaultImage" :alt="item.product.name" class="item-image" />
             <div class="item-details">
-              <router-link :to="`/product/${item.product.id}`" class="item-name">{{ item.product.name }}</router-link>
+              <router-link :to="`/products/${item.product.id}`" class="item-name">{{ item.product.name }}</router-link>
               <div class="item-meta">{{ item.product.description }}</div>
             </div>
           </div>
@@ -80,6 +80,19 @@
         </div>
       </div>
     </div>
+
+    <el-dialog v-model="checkoutVisible" title="确认收货地址" width="480px">
+      <el-radio-group v-model="selectedAddressId" class="address-list">
+        <el-radio v-for="addr in addresses" :key="addr.id" :value="addr.id" class="address-item">
+          {{ addr.province }}{{ addr.city }}{{ addr.district }}{{ addr.detail }}
+          <el-tag v-if="addr.is_default" type="success" size="small">默认</el-tag>
+        </el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="checkoutVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitOrder">确认下单</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -132,7 +145,7 @@ const fetchCartItems = async () => {
   
   try {
     const response = await api.cart.getItems()
-    cartItems.value = (response.items || []).map(item => ({
+    cartItems.value = (response.data || []).map(item => ({
       ...item,
       selected: true
     }))
@@ -218,17 +231,50 @@ const updateSelectedState = () => {
   // 这个函数只是为了触发计算属性的更新
 }
 
-// 结算
-const checkout = () => {
+// 结算：选择收货地址后创建订单
+const checkoutVisible = ref(false)
+const addresses = ref([])
+const selectedAddressId = ref(null)
+const submitting = ref(false)
+
+const checkout = async () => {
   const selectedItems = cartItems.value.filter(item => item.selected)
-  
   if (selectedItems.length === 0) {
     ElMessage.warning('请先选择要结算的商品')
     return
   }
-  
-  // 跳转到结算页面
-  router.push('/checkout')
+  try {
+    const resp = await api.addresses.getList()
+    addresses.value = resp.data || []
+    if (!addresses.value.length) {
+      ElMessage.warning('请先在个人中心添加收货地址')
+      router.push('/profile')
+      return
+    }
+    selectedAddressId.value = addresses.value.find(a => a.is_default)?.id || addresses.value[0].id
+    checkoutVisible.value = true
+  } catch (err) {
+    ElMessage.error('获取收货地址失败')
+  }
+}
+
+const submitOrder = async () => {
+  submitting.value = true
+  try {
+    const cartIds = cartItems.value.filter(item => item.selected).map(item => item.id)
+    const resp = await api.orders.create({ cart_ids: cartIds, address_id: selectedAddressId.value })
+    if (resp.success) {
+      ElMessage.success('下单成功')
+      checkoutVisible.value = false
+      router.push(`/orders/${resp.data.id}`)
+    } else {
+      ElMessage.error(resp.message || '下单失败')
+    }
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '下单失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(() => {
@@ -347,4 +393,6 @@ onMounted(() => {
   color: #f56c6c;
   font-size: 24px;
 }
+.address-list { display: flex; flex-direction: column; gap: 12px; }
+.address-item { white-space: normal; height: auto; align-items: flex-start; }
 </style>

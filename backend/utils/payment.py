@@ -31,7 +31,7 @@ def init_alipay_payment(order_id, user_id):
     order = Order.query.filter_by(
         id=order_id,
         user_id=user_id,
-        status='pending_payment',
+        status='待付款',
         is_deleted=False
     ).first()
     
@@ -62,7 +62,7 @@ def init_wechat_payment(order_id, user_id):
     order = Order.query.filter_by(
         id=order_id,
         user_id=user_id,
-        status='pending_payment',
+        status='待付款',
         is_deleted=False
     ).first()
     
@@ -91,8 +91,8 @@ def handle_alipay_callback():
     
     if trade_status == 'TRADE_SUCCESS':
         order = Order.query.get(order_id)
-        if order and order.status == 'pending_payment':
-            order.status = 'paid'
+        if order and order.status == '待付款':
+            order.status = '已付款'
             order.payment_time = datetime.utcnow()
             order.payment_method = 'alipay'
             db.session.commit()
@@ -110,8 +110,8 @@ def handle_wechat_callback():
     if data.get('result_code') == 'SUCCESS':
         order_id = data.get('out_trade_no')
         order = Order.query.get(order_id)
-        if order and order.status == 'pending_payment':
-            order.status = 'paid'
+        if order and order.status == '待付款':
+            order.status = '已付款'
             order.payment_time = datetime.utcnow()
             order.payment_method = 'wechat'
             db.session.commit()
@@ -132,7 +132,7 @@ def process_payment(order_id, user_id):
     order = Order.query.filter_by(
         id=order_id,
         user_id=user_id,
-        status='pending_payment',
+        status='待付款',
         is_deleted=False
     ).first()
     
@@ -149,7 +149,7 @@ def process_payment(order_id, user_id):
         balance.amount -= order.total_amount
         
         # 更新订单状态
-        order.status = 'paid'
+        order.status = '已付款'
         order.payment_time = datetime.utcnow()
         
         db.session.commit()
@@ -171,7 +171,7 @@ def process_refund(order_id, user_id):
     order = Order.query.filter_by(
         id=order_id,
         user_id=user_id,
-        status='paid',
+        status='已付款',
         is_deleted=False
     ).first()
     

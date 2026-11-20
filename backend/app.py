@@ -1,13 +1,10 @@
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
-from flask_caching import Cache
 from backend.config import get_config
 from backend.routes import register_blueprints  # 假设 routes/__init__.py 已定义
 from datetime import datetime
 from backend.models import db
-
-
-cache = Cache()
+from backend.extensions import cache
 
 
 def create_app(config_class=None):
@@ -18,21 +15,32 @@ def create_app(config_class=None):
         config_class.validate()
     app.config.from_object(config_class)
 
+    # 关闭严格斜杠重定向：/api/products 与 /api/products/ 都能直达。
+    # 308 重定向会让浏览器/axios 丢失 Authorization 头，表现为"点击按钮就跳登录页"。
+    app.url_map.strict_slashes = False
+
     # 初始化扩展
     db.init_app(app)
     CORS(app)
     cache.init_app(app)
 
+    # 分类日志：logs/{app,access,error,security}.log，按天滚动
+    from backend.utils.logging_config import install_request_logging
+    install_request_logging(app)
+
     # 注册蓝图
     register_blueprints(app)
 
-    # 创建所有数据库表
+    # 创建所有数据库表 + 旧库平滑迁移 + 本地演示种子数据
     with app.app_context():
         try:
             db.create_all()
-            # print("数据库表创建成功")
+            from backend.bootstrap import ensure_columns, seed_demo_data
+            ensure_columns(app, db)
+            if app.config.get('SEED_DEMO_DATA'):
+                seed_demo_data(app, db)
         except Exception as e:
-            print(f"数据库表创建失败: {e}")
+            print(f"数据库初始化失败: {e}")
 
     # 定义端点中文描述
     endpoint_descriptions = {
@@ -45,6 +53,7 @@ def create_app(config_class=None):
         '/api/auth/profile': '获取用户信息（需要令牌）',
         '/api/auth/profile/<method:PUT>': '更新用户信息（需要令牌）',
         '/api/auth/profile/id-card': '切换身份证号显示模式（需要令牌）',
+        '/api/auth/dev/captchas': '查看测试验证码台账（仅 dev 模式，生产模式 404）',
 
         # 管理员相关 (/api/admin)
         '/api/admin/users': '获取用户列表（支持分页和搜索）',
@@ -154,7 +163,23 @@ def create_app(config_class=None):
         # 按路径排序
         endpoints.sort(key=lambda x: (x['path'], x['method']))
         return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                               captcha_mode=app.config.get('CAPTCHA_MODE', 'dev'),
                                endpoints=endpoints)
+
+    # 测试模式验证码展示页：把后端生成的验证码直接显示在网页上
+    @app.route('/dev/captchas')
+    def dev_captchas_page():
+        if app.config.get('CAPTCHA_MODE', 'dev') == 'prod':
+            return '生产模式不提供验证码展示页面', 404
+        from backend.utils.auth_helper import list_dev_captchas
+        items = list_dev_captchas()
+        for item in items:
+            item['created_at_text'] = datetime.fromtimestamp(
+                item['created_at']).strftime('%H:%M:%S')
+        return render_template(
+            'dev_captchas.html',
+            current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            items=items)
 
     # 处理 favicon.ico 请求，避免 404
     @app.route('/favicon.ico')

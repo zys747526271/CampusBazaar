@@ -36,7 +36,7 @@ def get_messages(current_user):
     if is_read is not None:
         query = query.filter_by(is_read=is_read)
 
-    pagination = query.order_by(desc(Message.create_time)).paginate(page=page, per_page=per_page)
+    pagination = query.order_by(desc(Message.created_at)).paginate(page=page, per_page=per_page)
     logger.info(f"User {current_user.id} fetched messages (page={page})")
     return json_response(True, '获取消息列表成功', {
         'items': [message.to_dict() for message in pagination.items],

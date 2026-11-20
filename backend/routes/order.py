@@ -36,7 +36,7 @@ def get_orders(current_user):
     if status:
         query = query.filter_by(status=status)
     if search:
-        query = query.filter(Order.order_number.ilike(f'%{search}%'))
+        query = query.filter(Order.order_no.ilike(f'%{search}%'))
 
     pagination = query.order_by(Order.create_time.desc()).paginate(page=page, per_page=per_page)
     logger.info(f"User {current_user.id} fetched orders (page={page})")
@@ -99,7 +99,7 @@ def create_order(current_user):
     products_data = []
     for cart_item in cart_items:
         product = cart_item.product
-        if product.is_deleted or product.status != 'approved':
+        if product.is_deleted or product.status != '已通过':
             return json_response(False, f'商品 {product.name} 不可购买', status=400)
         if product.quantity < cart_item.quantity:
             return json_response(False, f'商品 {product.name} 库存不足', status=400)
@@ -108,11 +108,11 @@ def create_order(current_user):
 
     order = Order(
         user_id=current_user.id,
-        order_number=datetime.now().strftime('%Y%m%d%H%M%S') + str(current_user.id),
+        order_no=datetime.now().strftime('%Y%m%d%H%M%S') + str(current_user.id),
         total_amount=total_amount,
         address_id=address.id,
-        products=json.dumps(products_data),
-        status='pending_payment'
+        products_info=json.dumps(products_data, ensure_ascii=False),
+        status='待付款'
     )
 
     try:
@@ -149,22 +149,30 @@ def update_order_status(current_user, order_id):
     if 'status' not in data:
         return json_response(False, '缺少status字段', status=400)
 
-    allowed_status = {
-        'pending_payment': ['paid', 'cancelled'],
-        'paid': ['shipped'],
-        'shipped': ['completed'],
-        'completed': [],
-        'cancelled': []
+    # 对外仍接受英文状态名，内部统一存中文（与模型 Enum 一致）
+    status_alias = {
+        'pending_payment': '待付款', 'paid': '已付款', 'shipped': '已发货',
+        'completed': '已完成', 'cancelled': '已取消',
+        '待付款': '待付款', '已付款': '已付款', '已发货': '已发货',
+        '已完成': '已完成', '已取消': '已取消'
     }
-    if data['status'] not in allowed_status.get(order.status, []):
+    new_status = status_alias.get(data['status'])
+    allowed_status = {
+        '待付款': ['已付款', '已取消'],
+        '已付款': ['已发货'],
+        '已发货': ['已完成'],
+        '已完成': [],
+        '已取消': []
+    }
+    if not new_status or new_status not in allowed_status.get(order.status, []):
         return json_response(False, '非法的状态转换', status=400)
 
-    order.status = data['status']
-    if data['status'] == 'paid':
+    order.status = new_status
+    if new_status == '已付款':
         order.payment_time = datetime.utcnow()
-    elif data['status'] == 'shipped':
+    elif new_status == '已发货':
         order.shipping_time = datetime.utcnow()
-    elif data['status'] == 'completed':
+    elif new_status == '已完成':
         order.complete_time = datetime.utcnow()
 
     try:
@@ -191,7 +199,7 @@ def delete_order(current_user, order_id):
     if not order:
         return json_response(False, '订单不存在', status=404)
 
-    if order.status not in ['completed', 'cancelled']:
+    if order.status not in ['已完成', '已取消']:
         return json_response(False, '只能删除已完成或已取消的订单', status=400)
 
     order.is_deleted = True
@@ -227,7 +235,7 @@ def admin_get_orders(current_admin):
     if status:
         query = query.filter_by(status=status)
     if search:
-        query = query.filter(Order.order_number.ilike(f'%{search}%'))
+        query = query.filter(Order.order_no.ilike(f'%{search}%'))
 
     pagination = query.order_by(Order.create_time.desc()).paginate(page=page, per_page=per_page)
     logger.info(f"Admin {current_admin.id} fetched all orders (page={page})")
@@ -253,10 +261,10 @@ def admin_ship_order(current_admin, order_id):
     if not order:
         return json_response(False, '订单不存在', status=404)
 
-    if order.status != 'paid':
+    if order.status != '已付款':
         return json_response(False, '只能发货已付款的订单', status=400)
 
-    order.status = 'shipped'
+    order.status = '已发货'
     order.shipping_time = datetime.utcnow()
     try:
         db.session.commit()

@@ -34,7 +34,7 @@
     <div class="recommended-section">
       <div class="section-title">
         <h2>推荐商品</h2>
-        <router-link to="/" class="view-more">查看更多</router-link>
+        <router-link to="/products?sort=recommended" class="view-more">查看更多 →</router-link>
       </div>
       <el-row :gutter="20" v-loading="loading.recommended">
         <el-col :xs="12" :sm="8" :md="6" :lg="4" v-for="product in recommendedProducts" :key="product.id">
@@ -47,7 +47,7 @@
     <div class="hot-section">
       <div class="section-title">
         <h2>热门商品</h2>
-        <router-link to="/" class="view-more">查看更多</router-link>
+        <router-link to="/products?sort=hot" class="view-more">查看更多 →</router-link>
       </div>
       <el-row :gutter="20" v-loading="loading.hot">
         <el-col :xs="12" :sm="8" :md="6" :lg="4" v-for="product in hotProducts" :key="product.id">
@@ -60,7 +60,7 @@
     <div class="latest-section">
       <div class="section-title">
         <h2>最新上架</h2>
-        <router-link to="/" class="view-more">查看更多</router-link>
+        <router-link to="/products?sort=created_at" class="view-more">查看更多 →</router-link>
       </div>
       <el-row :gutter="20" v-loading="loading.latest">
         <el-col :xs="12" :sm="8" :md="6" :lg="4" v-for="product in latestProducts" :key="product.id">
@@ -76,7 +76,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Goods, ShoppingBag, Bicycle, Basketball, 
+  Goods, ShoppingBag, Bicycle, Basketball,
   Suitcase, Notebook, Camera, Headset
 } from '@element-plus/icons-vue'
 import api from '../../utils/api'
@@ -114,8 +114,8 @@ const banners = ref([
   }
 ])
 
-// 分类数据
-const categories = ref([
+// 分类数据：优先从后端加载，失败时保留本地兜底
+const fallbackCategories = [
   { id: 1, name: '电子产品', icon: 'Goods' },
   { id: 2, name: '服装鞋包', icon: 'ShoppingBag' },
   { id: 3, name: '运动户外', icon: 'Basketball' },
@@ -124,7 +124,21 @@ const categories = ref([
   { id: 6, name: '交通工具', icon: 'Bicycle' },
   { id: 7, name: '数码设备', icon: 'Camera' },
   { id: 8, name: '其他', icon: 'Headset' }
-])
+]
+const categoryIcons = ['Goods', 'ShoppingBag', 'Basketball', 'Notebook', 'Suitcase', 'Bicycle', 'Camera', 'Headset']
+const categories = ref(fallbackCategories)
+
+const fetchCategories = async () => {
+  try {
+    const resp = await api.tags.getList({ per_page: 100 })
+    const items = resp.data?.items || []
+    if (items.length) {
+      categories.value = items.map((t, index) => ({
+        id: t.id, name: t.name, icon: categoryIcons[index % categoryIcons.length]
+      }))
+    }
+  } catch (e) { /* 使用兜底分类 */ }
+}
 
 // 商品数据
 const recommendedProducts = ref([])
@@ -135,8 +149,8 @@ const latestProducts = ref([])
 const fetchRecommendedProducts = async () => {
   loading.value.recommended = true
   try {
-    const data = await api.products.getRecommended()
-    recommendedProducts.value = data.products || []
+    const resp = await api.products.getRecommended()
+    recommendedProducts.value = resp.data?.items || []
   } catch (error) {
     console.error('获取推荐商品失败:', error)
     ElMessage.error('获取推荐商品失败')
@@ -149,8 +163,8 @@ const fetchRecommendedProducts = async () => {
 const fetchHotProducts = async () => {
   loading.value.hot = true
   try {
-    const data = await api.products.getHot()
-    hotProducts.value = data.products || []
+    const resp = await api.products.getHot()
+    hotProducts.value = resp.data?.items || []
   } catch (error) {
     console.error('获取热门商品失败:', error)
     ElMessage.error('获取热门商品失败')
@@ -163,8 +177,8 @@ const fetchHotProducts = async () => {
 const fetchLatestProducts = async () => {
   loading.value.latest = true
   try {
-    const data = await api.products.getList({ sort: 'created_at', order: 'desc', limit: 6 })
-    latestProducts.value = data.products || []
+    const resp = await api.products.getList({ sort_by: 'created_at', order: 'desc', per_page: 6 })
+    latestProducts.value = resp.data?.items || []
   } catch (error) {
     console.error('获取最新商品失败:', error)
     ElMessage.error('获取最新商品失败')
@@ -173,12 +187,9 @@ const fetchLatestProducts = async () => {
   }
 }
 
-// 按分类筛选
+// 按分类筛选：跳转到商品列表页并带上分类参数（商品列表支持按标签过滤）
 const filterByCategory = (categoryId) => {
-  router.push({
-    path: '/',
-    query: { category: categoryId }
-  })
+  router.push({ path: '/products', query: { tag_id: String(categoryId) } })
 }
 
 // 导航到指定链接
@@ -188,6 +199,7 @@ const navigateTo = (link) => {
 
 // 生命周期钩子
 onMounted(() => {
+  fetchCategories()
   fetchRecommendedProducts()
   fetchHotProducts()
   fetchLatestProducts()

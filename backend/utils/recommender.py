@@ -20,7 +20,7 @@ def get_hot_products(limit: int = 10) -> List[Product]:
         List[Product]: 热门商品列表
     """
     return Product.query.filter_by(
-        status='approved',
+        status='已通过',
         is_deleted=False
     ).order_by(
         Product.views.desc(),
@@ -41,7 +41,7 @@ def get_user_preferences(user_id: int) -> Dict[int, int]:
     orders = Order.query.filter(
         and_(
             Order.user_id == user_id,
-            Order.status == 'completed',
+            Order.status == '已完成',
             Order.is_deleted == False
         )
     ).all()
@@ -86,7 +86,7 @@ def get_user_purchased_products(user_id: int) -> Set[int]:
         Set[int]: 商品ID集合
     """
     purchased_products = set()
-    orders = Order.query.filter_by(user_id=user_id, status='completed').all()
+    orders = Order.query.filter_by(user_id=user_id, status='已完成').all()
 
     for order in orders:
         try:
@@ -115,7 +115,7 @@ def get_recommended_products(user_id: int, limit: int = 10) -> List[Product]:
 
     active_users = User.query.join(Order).filter(
         and_(
-            Order.status == 'completed',
+            Order.status == '已完成',
             User.id != user_id,
             Order.create_time >= func.date_sub(func.now(), func.interval('3 MONTH'))
         )
@@ -138,7 +138,7 @@ def get_recommended_products(user_id: int, limit: int = 10) -> List[Product]:
     for similar_user_id, similarity in similar_users:
         orders = Order.query.filter_by(
             user_id=similar_user_id,
-            status='completed'
+            status='已完成'
         ).order_by(Order.create_time.desc()).limit(10).all()
 
         product_ids = set()
@@ -152,7 +152,7 @@ def get_recommended_products(user_id: int, limit: int = 10) -> List[Product]:
 
         products = Product.query.filter(
             Product.id.in_(product_ids),
-            Product.status == 'approved',
+            Product.status == '已通过',
             Product.is_deleted == False
         ).all()
 

@@ -13,18 +13,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class AuthError(ValueError):
+    """认证失败（HTTP 401）：令牌缺失、过期、无效，或账号不存在/被封禁。"""
+
+
+class PermissionDenied(ValueError):
+    """权限不足（HTTP 403）：身份已确认，但角色或权限级别不符合接口要求。"""
+
+
 def get_redis_client():
-    """动态获取 Redis 客户端，确保在应用上下文中"""
+    """仅在 RedisCache 模式下尝试连接 Redis；本地 SimpleCache 模式直接返回 None。"""
+    cache_type = current_app.config.get('CACHE_TYPE', 'SimpleCache')
+    if cache_type != 'RedisCache':
+        return None
     try:
         redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
         redis_pool = redis.ConnectionPool.from_url(redis_url)
         client = redis.Redis(connection_pool=redis_pool)
-        # 测试连接
         client.ping()
         return client
-    except redis.ConnectionError as e:
-        logger.error(f"Redis connection failed: {str(e)}. Falling back to no caching.")
-        return None  # 如果 Redis 不可用，返回 None，后续逻辑跳过缓存
+    except Exception as e:
+        logger.warning(f"Redis 不可用，跳过用户缓存: {str(e)}")
+        return None
 
 
 def get_token_from_header() -> Optional[str]:
@@ -44,21 +54,21 @@ def get_token_from_header() -> Optional[str]:
 def verify_token(token: str) -> dict:
     """验证并解码JWT令牌"""
     if not token:
-        raise ValueError('令牌为空')
+        raise AuthError('令牌为空')
     try:
         # 确保 JWT_SECRET_KEY 存在
         secret_key = current_app.config.get('JWT_SECRET_KEY')
         if not secret_key:
             logger.error("JWT_SECRET_KEY is not set in config")
-            raise ValueError('服务器配置错误：缺少JWT密钥')
+            raise AuthError('服务器配置错误：缺少JWT密钥')
         payload = jwt.decode(token, secret_key, algorithms=['HS256'])
         logger.debug(f"Token decoded successfully: {payload}")
         return payload
     except jwt.ExpiredSignatureError:
-        raise ValueError('令牌已过期，请重新登录')
+        raise AuthError('令牌已过期，请重新登录')
     except jwt.InvalidTokenError as e:
-        logger.error(f"Token verification failed: {str(e)}. Token: {token}")
-        raise ValueError(f'令牌验证失败: {str(e)}')
+        logger.error(f"Token verification failed: {str(e)}")
+        raise AuthError(f'令牌验证失败: {str(e)}')
 
 
 def get_current_user(payload: dict) -> Union[User, Admin]:
@@ -67,7 +77,7 @@ def get_current_user(payload: dict) -> Union[User, Admin]:
     user_type = payload.get("type")
     user_id = payload.get("user_id") if user_type == "user" else payload.get("admin_id")
     if not user_id:
-        raise ValueError('令牌中缺少用户ID')
+        raise AuthError('令牌中缺少用户ID')
 
     cache_key = f'user:{user_id}'
 
@@ -84,9 +94,9 @@ def get_current_user(payload: dict) -> Union[User, Admin]:
     if user_type == 'user':
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:
-            raise ValueError('用户不存在')
+            raise AuthError('用户不存在')
         if user.is_banned:
-            raise ValueError('用户已被封禁')
+            raise AuthError('用户已被封禁')
         if redis_client:
             try:
                 redis_client.setex(cache_key, timedelta(minutes=10), pickle.dumps(user))
@@ -96,7 +106,7 @@ def get_current_user(payload: dict) -> Union[User, Admin]:
     elif user_type == 'admin':
         admin = Admin.query.filter_by(id=user_id).first()
         if not admin:
-            raise ValueError('管理员不存在')
+            raise AuthError('管理员不存在')
         if redis_client:
             try:
                 redis_client.setex(cache_key, timedelta(minutes=10), pickle.dumps(admin))
@@ -104,7 +114,7 @@ def get_current_user(payload: dict) -> Union[User, Admin]:
                 logger.warning(f"Failed to cache admin {user_id}: {str(e)}")
         return admin
     else:
-        raise ValueError('无效的令牌类型')
+        raise AuthError('无效的令牌类型')
 
 
 def auth_decorator(user_type: str = None, permission_level: int = None) -> Callable:
@@ -121,25 +131,28 @@ def auth_decorator(user_type: str = None, permission_level: int = None) -> Calla
                 payload = verify_token(token)
 
                 if user_type and payload.get('type') != user_type:
-                    raise ValueError(f'需要{"用户" if user_type == "user" else "管理员"}权限')
+                    raise PermissionDenied(
+                        f'需要{"普通用户" if user_type == "user" else "管理员"}身份，当前身份不匹配')
 
                 current_user = get_current_user(payload)
 
                 if permission_level is not None:
                     if not isinstance(current_user, Admin):
-                        raise ValueError('需要管理员权限')
-                    # 假设 Admin 模型有 permission_level 属性，且是整数
+                        raise PermissionDenied('需要管理员权限')
                     if hasattr(current_user, 'permission_level') and current_user.permission_level < permission_level:
-                        raise ValueError('权限不足')
-                    # 假设 Admin 模型有 is_super_admin 方法
+                        raise PermissionDenied('权限不足')
                     if not hasattr(current_user, 'is_super_admin') or (
                             not current_user.is_super_admin() and permission_level >= 2):
-                        raise ValueError('需要超级管理员权限')
+                        raise PermissionDenied('需要超级管理员权限')
 
                 logger.info(f"User {current_user.id} (type: {user_type or 'any'}) accessed {request.path}")
                 return f(current_user, *args, **kwargs)
 
-            except ValueError as e:
+            except PermissionDenied as e:
+                # 身份已确认但角色/权限不匹配：403，前端不得据此清除登录态
+                logger.warning(f"Permission denied: {str(e)}")
+                return jsonify({'success': False, 'message': str(e)}), 403
+            except AuthError as e:
                 logger.warning(f"Auth failed: {str(e)}")
                 return jsonify({'success': False, 'message': str(e)}), 401
             except Exception as e:

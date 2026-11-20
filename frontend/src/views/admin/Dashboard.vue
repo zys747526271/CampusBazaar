@@ -194,11 +194,10 @@ const formatDate = (dateString) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    'pending': '待付款',
-    'paid': '待发货',
-    'shipped': '已发货',
-    'completed': '已完成',
-    'cancelled': '已取消'
+    'pending': '待付款', 'paid': '待发货', 'shipped': '已发货',
+    'completed': '已完成', 'cancelled': '已取消',
+    '待付款': '待付款', '已付款': '待发货', '已发货': '已发货',
+    '已完成': '已完成', '已取消': '已取消'
   }
   return statusMap[status] || status
 }
@@ -206,11 +205,10 @@ const getStatusText = (status) => {
 // 获取状态类型
 const getStatusType = (status) => {
   const typeMap = {
-    'pending': 'warning',
-    'paid': 'primary',
-    'shipped': 'success',
-    'completed': 'success',
-    'cancelled': 'info'
+    'pending': 'warning', 'paid': 'primary', 'shipped': 'success',
+    'completed': 'success', 'cancelled': 'info',
+    '待付款': 'warning', '已付款': 'primary', '已发货': 'success',
+    '已完成': 'success', '已取消': 'info'
   }
   return typeMap[status] || ''
 }

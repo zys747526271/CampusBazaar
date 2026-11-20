@@ -211,8 +211,8 @@ const fetchUsers = async () => {
       query: searchQuery.value
     }
     const response = await api.admin.getUsers(params)
-    users.value = response.items || []
-    total.value = response.total || 0
+    users.value = response.data?.items || []
+    total.value = response.data?.total || 0
   } catch (error) {
     console.error('获取用户列表失败:', error)
     ElMessage.error('获取用户列表失败')

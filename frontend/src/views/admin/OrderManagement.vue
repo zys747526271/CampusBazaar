@@ -246,8 +246,8 @@ const fetchOrders = async () => {
       status: statusFilter.value
     }
     const response = await api.orders.getList(params)
-    orders.value = response.items || []
-    total.value = response.total || 0
+    orders.value = response.data?.items || []
+    total.value = response.data?.total || 0
   } catch (error) {
     console.error('获取订单列表失败:', error)
     ElMessage.error('获取订单列表失败')

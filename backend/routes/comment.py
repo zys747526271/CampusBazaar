@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app
 from ..models import db, Comment, User, Product, Order, Admin
 from ..utils.decorators import token_required, admin_required
+from ..utils.runtime_cache import get_store
 from datetime import datetime
-import redis
 import logging
 
 comment_bp = Blueprint('comment', __name__)
@@ -12,7 +12,8 @@ def json_response(success, message, data=None, status=200):
     return jsonify({'success': success, 'message': message, 'data': data}), status
 
 def get_redis_client():
-    return redis.Redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
+    """统一存储（local 内存 / 生产 Redis），方法签名对齐 redis-py。"""
+    return get_store()
 
 @comment_bp.route('/product/<int:product_id>', methods=['GET'])
 def get_product_comments(product_id):
@@ -38,13 +39,18 @@ def get_product_comments(product_id):
     sort_by = request.args.get('sort_by', 'create_time')
     sort_order = request.args.get('sort_order', 'desc')
 
-    cache_key = f"product:comments:{product_id}:{page}:{per_page}:{sort_by}:{sort_order}"
+    cache_key = f"product:comments:{product_id}:{page}:{per_page}:{sort_by}:{sort_order}:v2"
     cached_data = redis_client.get(cache_key)
     if cached_data:
         logger.info(f"Fetched cached comments for product {product_id}")
-        return json_response(True, '获取评论成功(缓存)', eval(cached_data.decode()))
+        try:
+            import json
+            return json_response(True, '获取评论成功(缓存)', json.loads(cached_data.decode()))
+        except Exception:
+            pass  # 缓存内容异常时回落到数据库查询
 
-    query = Comment.query.filter_by(product_id=product_id, parent_id=None, is_deleted=False)
+    query = Comment.query.filter_by(
+        product_id=product_id, parent_id=None, is_deleted=False, is_hidden=False)
     if sort_order.lower() == 'desc':
         query = query.order_by(getattr(Comment, sort_by).desc())
     else:

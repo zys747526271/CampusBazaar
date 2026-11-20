@@ -36,4 +36,5 @@ backend/static/uploads/*
 backend/static/data/*.json
 
 # ===== 日志 =====
+logs/
 *.log

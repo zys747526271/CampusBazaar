@@ -23,6 +23,13 @@
             <h1 class="display-4">欢迎使用 Flask 后端 API</h1>
             <p class="lead">当前日期: {{ current_date }}</p>
             <p>这是一个动态生成的 API 概览页面，列出了所有可用的端点及其功能描述。</p>
+            {% if captcha_mode != 'prod' %}
+            <p>
+                <a class="btn btn-warning btn-sm" href="/dev/captchas" target="_blank">
+                    查看测试验证码（后端页面）
+                </a>
+            </p>
+            {% endif %}
         </div>
 
         <div class="endpoint-list">

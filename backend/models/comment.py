@@ -10,6 +10,7 @@ class Comment(db.Model):
     rating = db.Column(db.Integer, default=5, nullable=False, comment='评分(1-5，默认5)')
     likes = db.Column(db.Integer, default=0, comment='点赞数')
     is_deleted = db.Column(db.Boolean, default=False, comment='是否软删除')
+    is_hidden = db.Column(db.Boolean, default=False, comment='是否被管理员隐藏（前台不可见）')
     create_time = db.Column(db.DateTime, default=datetime.utcnow, comment='创建时间')
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
@@ -46,6 +47,7 @@ class Comment(db.Model):
             'order_id': self.order_id,
             'parent_id': self.parent_id,
             'is_deleted': self.is_deleted,
+            'is_hidden': bool(self.is_hidden),
             'is_purchase': self.order_id is not None
         }
 

@@ -1,10 +1,10 @@
 <template>
   <div class="product-card" @click="navigateToDetail">
     <div class="product-image">
-      <el-image 
-        :src="product.image_url || defaultImage" 
+      <el-image
+        :src="coverImage"
         fit="cover"
-        :preview-src-list="[product.image_url]"
+        :preview-src-list="previewList"
         :initial-index="0"
         alt="商品图片"
         loading="lazy"
@@ -61,11 +61,19 @@ const props = defineProps({
 })
 
 const router = useRouter()
-const defaultImage = 'https://via.placeholder.com/300x300?text=No+Image'
+const defaultImage = 'https://via.placeholder.com/300x300?text=校园好物'
+
+// 后端 images 是 URL 数组，取第一张作为封面
+const previewList = computed(() => {
+  const imgs = props.product.images || []
+  return imgs.length ? imgs : [defaultImage]
+})
+const coverImage = computed(() => previewList.value[0])
 
 // 格式化价格
 const formatPrice = (price) => {
-  return parseFloat(price).toFixed(2)
+  const n = parseFloat(price)
+  return isNaN(n) ? '0.00' : n.toFixed(2)
 }
 
 // 跳转到商品详情页

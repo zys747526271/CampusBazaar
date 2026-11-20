@@ -302,8 +302,8 @@ const fetchProducts = async () => {
       status: statusFilter.value
     }
     const response = await api.products.getList(params)
-    products.value = response.items || []
-    total.value = response.total || 0
+    products.value = response.data?.items || []
+    total.value = response.data?.total || 0
   } catch (error) {
     console.error('获取商品列表失败:', error)
     ElMessage.error('获取商品列表失败')
@@ -416,8 +416,8 @@ const handleBatchApprove = () => {
     try {
       const productIds = selectedProducts.value.map(product => product.id)
       await api.admin.batchUpdateProductStatus({
-        ids: productIds,
-        status: 'active'
+        product_ids: productIds,
+        status: '已通过'
       })
       ElMessage.success('批量上架成功')
       fetchProducts()
@@ -449,8 +449,8 @@ const handleBatchReject = () => {
     try {
       const productIds = selectedProducts.value.map(product => product.id)
       await api.admin.batchUpdateProductStatus({
-        ids: productIds,
-        status: 'inactive'
+        product_ids: productIds,
+        status: '已下架'
       })
       ElMessage.success('批量下架成功')
       fetchProducts()

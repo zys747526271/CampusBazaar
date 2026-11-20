@@ -13,3 +13,5 @@ from .tag import Tag
 from .comment import Comment
 from .balance import Balance
 from .message import Message
+from .favorite import Favorite, BrowseHistory
+from .seller_category import SellerCategory

@@ -14,6 +14,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True, comment='邮箱地址')
     avatar_url = db.Column(db.String(255), nullable=True, comment='头像URL')
     is_banned = db.Column(db.Boolean, default=False, comment='是否被封禁')
+    is_seller = db.Column(db.Boolean, default=False, comment='是否已开通卖家身份')
     is_deleted = db.Column(db.Boolean, default=False, comment='是否软删除')
     register_time = db.Column(db.DateTime, default=datetime.utcnow, comment='注册时间')
     last_login_time = db.Column(db.DateTime, nullable=True, comment='最后登录时间')
@@ -56,6 +57,7 @@ class User(db.Model):
             'phone': self.phone,
             'email': self.email,
             'avatar_url': self.avatar_url,
+            'is_seller': bool(self.is_seller),
             'register_time': self.register_time.isoformat() if self.register_time else None,
             'last_login_time': self.last_login_time.isoformat() if self.last_login_time else None
         }
