@@ -1,6 +1,8 @@
 """订单状态机、库存并发、幂等与退款。"""
 from __future__ import annotations
 
+import re
+
 from conftest import headers, login, place_order
 from backend.constants import OrderStatus
 from backend.extensions import db
@@ -12,6 +14,8 @@ def test_order_creation_locks_stock(client, buyer_token):
     assert resp.status_code == 201, resp.get_json()
     order = resp.get_json()["data"]["orders"][0]
     assert order["status"] == OrderStatus.UNPAID
+    # PRD FR-ORDR-01：CB + yyyyMMdd + 6 位随机
+    assert re.fullmatch(r"CB\d{14}", order["order_no"]), order["order_no"]
     assert order["total_amount"] == 20.0
     product = db.session.get(Product, 1)
     assert product.quantity == 1

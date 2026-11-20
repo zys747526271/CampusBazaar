@@ -215,8 +215,8 @@ def main() -> int:
     order = order_resp.json()["data"]["orders"][0]
     order_id = order["id"]
     check(
-        "订单号符合 CB+时间戳格式",
-        order["order_no"].startswith("CB") and len(order["order_no"]) >= 18,
+        "订单号符合 CB+yyyyMMdd+6位格式",
+        bool(re.fullmatch(r"CB\d{14}", order["order_no"])),
         order["order_no"],
     )
 

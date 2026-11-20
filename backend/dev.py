@@ -42,13 +42,10 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        app = create_app()
+        app = create_app(overrides={"SERVE_FRONTEND": True} if args.serve_dist else None)
     except Exception as exc:  # noqa: BLE001 - 启动失败必须给出可读原因
         print(f"[启动失败] 配置加载异常：{exc}", file=sys.stderr)
         return 1
-
-    if args.serve_dist:
-        app.config["SERVE_FRONTEND"] = True
 
     print(BANNER)
     print(f"  环境      : {app.config.get('ENV')}")

@@ -70,10 +70,10 @@ def money(value: Decimal | int | float | None) -> float:
 
 
 def order_no(prefix: str = "CB") -> str:
-    """订单号：CB + yyyyMMddHHmmss + 4 位随机，配合唯一索引防重复。"""
+    """订单号：CB + yyyyMMdd + 6 位随机（PRD FR-ORDR-01 规定格式），配合唯一索引防重复。"""
     import random
 
-    return f"{prefix}{utcnow().astimezone(CST).strftime('%Y%m%d%H%M%S')}{random.randint(1000, 9999)}"
+    return f"{prefix}{utcnow().astimezone(CST).strftime('%Y%m%d')}{random.randint(0, 999999):06d}"
 
 
 def mask_phone(phone: str | None) -> str:

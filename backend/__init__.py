@@ -19,13 +19,16 @@ from backend.utils.response import respond
 __version__ = "2.0.0"
 
 
-def create_app(config_object=None) -> Flask:
+def create_app(config_object=None, overrides: dict | None = None) -> Flask:
     app = Flask(__name__, static_folder="static", static_url_path="/static")
 
     config_object = config_object or get_config()
     if hasattr(config_object, "validate"):
         config_object.validate()
     app.config.from_object(config_object)
+    # 启动参数覆盖（如 --serve-dist），必须在注册路由前生效
+    if overrides:
+        app.config.update(overrides)
     # 中文直接输出，避免前端看到 \uXXXX；字段顺序保持稳定便于排查
     app.json.ensure_ascii = False
     app.json.sort_keys = False

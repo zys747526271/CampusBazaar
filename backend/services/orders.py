@@ -256,12 +256,13 @@ def create_orders(
     return orders
 
 
-def _unique_order_no() -> str:
-    for _ in range(5):
+def _unique_order_no(attempts: int = 8) -> str:
+    """同日 6 位随机，重试避让已有订单号；极端情况下宁可报 409 也不出重复单号。"""
+    for _ in range(attempts):
         candidate = order_no()
         if not Order.query.filter_by(order_no=candidate).first():
             return candidate
-    return order_no()
+    raise conflict("订单号生成失败，请重试")
 
 
 # ------------------------------------------------------------------ 支付
