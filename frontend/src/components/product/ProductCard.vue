@@ -1,208 +1,143 @@
-<template>
-  <div class="product-card" @click="navigateToDetail">
-    <div class="product-image">
-      <el-image
-        :src="coverImage"
-        fit="cover"
-        :preview-src-list="previewList"
-        :initial-index="0"
-        alt="商品图片"
-        loading="lazy"
-      >
-        <template #error>
-          <div class="image-error">
-            <el-icon><Picture /></el-icon>
-          </div>
-        </template>
-      </el-image>
-      <div v-if="product.discount" class="discount-tag">{{ product.discount }}折</div>
-    </div>
-    
-    <div class="product-info">
-      <h3 class="product-title" :title="product.name">{{ product.name }}</h3>
-      <p class="product-description" :title="product.description">{{ product.description }}</p>
-      
-      <div class="product-meta">
-        <div class="product-price">
-          <span class="current-price">¥{{ formatPrice(product.price) }}</span>
-          <span v-if="product.original_price" class="original-price">¥{{ formatPrice(product.original_price) }}</span>
-        </div>
-        <div class="product-stats">
-          <span class="sales">销量 {{ product.sales || 0 }}</span>
-        </div>
-      </div>
-      
-      <div class="product-tags" v-if="product.tags && product.tags.length">
-        <el-tag 
-          v-for="tag in product.tags" 
-          :key="tag.id" 
-          size="small" 
-          effect="plain"
-          class="product-tag"
-        >
-          {{ tag.name }}
-        </el-tag>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { Picture } from '@element-plus/icons-vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import AppImage from '@/components/ui/AppImage.vue'
+import AppRating from '@/components/ui/AppRating.vue'
+import { money, relativeTime } from '@/utils/format'
 
-// 组件属性
 const props = defineProps({
-  product: {
-    type: Object,
-    required: true
-  }
+  product: { type: Object, required: true },
+  showSeller: { type: Boolean, default: true },
+  showFavorite: { type: Boolean, default: false },
+  favorited: { type: Boolean, default: false }
+})
+const emit = defineEmits(['favorite', 'click'])
+
+const soldOut = computed(() => !props.product.is_on_sale)
+const seller = computed(() => props.product.seller || {})
+const sellerName = computed(() => seller.value.nickname || '校内同学')
+const initial = computed(() => sellerName.value.slice(0, 1))
+const discountText = computed(() => {
+  const value = Number(props.product.discount || 0)
+  return value > 0 && value < 10 ? `${value.toFixed(1)} 折` : ''
 })
 
-const router = useRouter()
-const defaultImage = 'https://via.placeholder.com/300x300?text=校园好物'
-
-// 后端 images 是 URL 数组，取第一张作为封面
-const previewList = computed(() => {
-  const imgs = props.product.images || []
-  return imgs.length ? imgs : [defaultImage]
-})
-const coverImage = computed(() => previewList.value[0])
-
-// 格式化价格
-const formatPrice = (price) => {
-  const n = parseFloat(price)
-  return isNaN(n) ? '0.00' : n.toFixed(2)
-}
-
-// 跳转到商品详情页
-const navigateToDetail = () => {
-  router.push(`/products/${props.product.id}`)
+const onFavorite = (event) => {
+  event.preventDefault()
+  event.stopPropagation()
+  emit('favorite', props.product)
 }
 </script>
 
-<style lang="scss" scoped>
+<template>
+  <RouterLink
+    :to="`/products/${product.id}`"
+    class="product-card"
+    :class="{ 'is-sold-out': soldOut }"
+    @click="emit('click', product)"
+  >
+    <div class="cover">
+      <AppImage :src="product.cover_image" :alt="product.name" radius="10px 10px 0 0" />
+      <span v-if="discountText" class="badge-discount">{{ discountText }}</span>
+      <span v-if="soldOut" class="mask"><span>已售出</span></span>
+      <button
+        v-if="showFavorite"
+        class="fav"
+        type="button"
+        :class="{ on: favorited }"
+        :aria-label="favorited ? '取消收藏' : '收藏'"
+        @click="onFavorite"
+      >
+        <AppIcon name="heart" :size="16" :filled="favorited" />
+      </button>
+    </div>
+
+    <div class="body">
+      <h3 class="title clamp-2">{{ product.name }}</h3>
+      <div class="meta">
+        <span class="tag tag-line">{{ product.condition }}</span>
+        <span class="text-xs text-muted">{{ relativeTime(product.created_at) }}</span>
+      </div>
+      <div class="price-row">
+        <span class="price price-md"><span class="unit">¥</span>{{ money(product.price) }}</span>
+        <span v-if="product.original_price" class="origin">¥{{ money(product.original_price) }}</span>
+        <span class="sold">已售 {{ product.sales || 0 }}</span>
+      </div>
+
+      <div v-if="showSeller" class="seller">
+        <span class="avatar">
+          <img v-if="seller.avatar_url" :src="seller.avatar_url" alt="" />
+          <template v-else>{{ initial }}</template>
+        </span>
+        <span class="name ellipsis">{{ sellerName }}</span>
+        <span v-if="seller.rating" class="rate">
+          <AppRating :model-value="seller.rating" :size="12" readonly />
+        </span>
+        <span v-else class="text-xs text-muted">新卖家</span>
+      </div>
+    </div>
+  </RouterLink>
+</template>
+
+<style scoped>
 .product-card {
-  background-color: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  margin-bottom: 20px;
-  cursor: pointer;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-  }
-  
-  .product-image {
-    position: relative;
-    height: 200px;
-    overflow: hidden;
-    
-    .el-image {
-      width: 100%;
-      height: 100%;
-    }
-    
-    .image-error {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-      height: 100%;
-      background-color: #f5f7fa;
-      color: #909399;
-      
-      .el-icon {
-        font-size: 30px;
-      }
-    }
-    
-    .discount-tag {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background-color: #f56c6c;
-      color: #fff;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-  }
-  
-  .product-info {
-    padding: 15px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    
-    .product-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #303133;
-      margin: 0 0 8px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    
-    .product-description {
-      font-size: 14px;
-      color: #606266;
-      margin: 0 0 10px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      line-height: 1.5;
-      height: 42px;
-    }
-    
-    .product-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      margin-top: auto;
-      
-      .product-price {
-        .current-price {
-          font-size: 18px;
-          font-weight: bold;
-          color: #f56c6c;
-        }
-        
-        .original-price {
-          font-size: 14px;
-          color: #909399;
-          text-decoration: line-through;
-          margin-left: 5px;
-        }
-      }
-      
-      .product-stats {
-        font-size: 12px;
-        color: #909399;
-      }
-    }
-    
-    .product-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      
-      .product-tag {
-        margin-right: 5px;
-      }
-    }
-  }
+  display: flex; flex-direction: column;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; transition: transform .18s, box-shadow .18s, border-color .18s;
 }
+.product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, .1);
+  border-color: transparent;
+}
+.cover { position: relative; }
+.badge-discount {
+  position: absolute; left: 10px; top: 10px;
+  background: rgba(31, 35, 41, .82); color: #fff;
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 5px;
+  backdrop-filter: blur(4px);
+}
+.mask {
+  position: absolute; inset: 0;
+  background: rgba(255, 255, 255, .62);
+  display: grid; place-items: center;
+  backdrop-filter: blur(1px);
+}
+.mask span {
+  background: rgba(31, 35, 41, .78); color: #fff;
+  padding: 5px 14px; border-radius: 999px; font-size: 12.5px;
+}
+.fav {
+  position: absolute; right: 8px; top: 8px;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: rgba(255, 255, 255, .92);
+  color: var(--muted); display: grid; place-items: center;
+  box-shadow: var(--shadow-xs);
+  opacity: 0; transform: translateY(-2px); transition: all .16s;
+}
+.product-card:hover .fav { opacity: 1; transform: none; }
+.fav.on { color: var(--brand); opacity: 1; }
+
+.body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.title { font-size: 14px; font-weight: 500; line-height: 1.5; min-height: 42px; color: var(--ink); }
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.price-row { display: flex; align-items: baseline; gap: 8px; margin-top: auto; }
+.origin { color: var(--muted-2); font-size: 12px; text-decoration: line-through; }
+.sold { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+
+.seller {
+  display: flex; align-items: center; gap: 6px;
+  padding-top: 10px; border-top: 1px dashed var(--line);
+  color: var(--muted); font-size: 12px;
+}
+.avatar {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700;
+  background: linear-gradient(135deg, #ffe2d3, #ffc3a6); color: #a03c0d;
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.name { max-width: 76px; }
+.rate { margin-left: auto; }
+.is-sold-out .title { color: var(--muted); }
 </style>

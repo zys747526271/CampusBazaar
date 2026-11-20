@@ -1,30 +1,29 @@
-<template>
-  <div class="app-container">
-    <router-view />
-  </div>
-</template>
-
 <script setup>
-// App.vue是应用的根组件
+import { onMounted } from 'vue'
+import ToastHost from '@/components/ui/ToastHost.vue'
+import ConfirmHost from '@/components/ui/ConfirmHost.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+import { useCartStore } from '@/stores/cart'
+
+const auth = useAuthStore()
+const app = useAppStore()
+const cart = useCartStore()
+
+onMounted(async () => {
+  app.loadOptions()
+  if (!auth.isLoggedIn) return
+  try {
+    await auth.fetchProfile()
+    await Promise.all([cart.refresh(), app.loadUnread()])
+  } catch (error) {
+    /* 拦截器已处理 401 */
+  }
+})
 </script>
 
-<style lang="scss">
-/* 全局样式 */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  color: #333;
-  background-color: #f5f5f5;
-}
-
-.app-container {
-  min-height: 100vh;
-}
-</style>
+<template>
+  <RouterView />
+  <ToastHost />
+  <ConfirmHost />
+</template>

@@ -1,62 +1,44 @@
+<script setup>
+import { useRouter } from 'vue-router'
+import AppIcon from '@/components/ui/AppIcon.vue'
+
+const router = useRouter()
+</script>
+
 <template>
-  <div class="not-found-page">
-    <div class="not-found-container">
-      <div class="error-code">404</div>
-      <h1 class="error-title">页面不存在</h1>
-      <p class="error-message">抱歉，您访问的页面不存在或已被移除</p>
-      <div class="actions">
-        <el-button type="primary" @click="$router.push('/')">返回首页</el-button>
-        <el-button @click="$router.go(-1)">返回上一页</el-button>
-      </div>
+  <div class="not-found">
+    <div class="code">404</div>
+    <h1>页面走丢了</h1>
+    <p class="text-muted">
+      你访问的页面可能已下架、被删除，或者链接有误。
+    </p>
+    <div class="ops">
+      <button class="btn btn-primary" type="button" @click="router.push('/')">回到首页</button>
+      <button class="btn" type="button" @click="router.push('/products')">去逛逛商品</button>
+    </div>
+    <div class="hint">
+      <AppIcon name="info" :size="14" />
+      <span>如果你是卖家，可前往卖家中心检查该商品是否仍在售。</span>
     </div>
   </div>
 </template>
 
-<script setup>
-// 不需要额外的逻辑
-</script>
-
 <style scoped>
-.not-found-page {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f5f7fa;
+.not-found {
+  min-height: calc(100vh - 220px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; padding: 60px 24px;
 }
-
-.not-found-container {
-  text-align: center;
-  padding: 40px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  max-width: 500px;
+.code {
+  font-size: 96px; font-weight: 800; line-height: 1;
+  letter-spacing: -4px;
+  background: linear-gradient(135deg, #ffb08a, #ff5000);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-
-.error-code {
-  font-size: 120px;
-  font-weight: bold;
-  color: #409eff;
-  line-height: 1.2;
-  margin-bottom: 20px;
-}
-
-.error-title {
-  font-size: 28px;
-  color: #303133;
-  margin-bottom: 15px;
-}
-
-.error-message {
-  font-size: 16px;
-  color: #606266;
-  margin-bottom: 30px;
-}
-
-.actions {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
+h1 { font-size: 22px; }
+.ops { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.hint {
+  margin-top: 18px; display: inline-flex; align-items: center; gap: 6px;
+  color: var(--muted); font-size: 12.5px;
 }
 </style>

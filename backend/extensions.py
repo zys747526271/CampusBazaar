@@ -1,5 +1,6 @@
-"""共享扩展实例（供应用初始化与各模块统一访问，避免循环导入）。"""
+"""Flask 扩展实例（单一来源，避免循环导入）。"""
 from flask_caching import Cache
+from flask_sqlalchemy import SQLAlchemy
 
-# 全应用唯一的缓存实例；在 create_app() 中调用 cache.init_app(app)
+db = SQLAlchemy()
 cache = Cache()
