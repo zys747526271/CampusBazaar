@@ -7,6 +7,13 @@
 import os
 from datetime import timedelta
 
+# 自动加载项目根目录的 .env（若存在），便于本地开发/测试；环境变量优先。
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+except ImportError:
+    pass  # 未安装 python-dotenv 时静默跳过，仍支持系统环境变量
+
 
 class Config:
     # ---------- 基础安全配置（必须通过环境变量提供） ----------
@@ -47,6 +54,17 @@ class DevelopmentConfig(Config):
     DEBUG = True
 
 
+class TestingConfig(Config):
+    """本地快速测试专用：SQLite 内存库 + SimpleCache，无需 MySQL / Redis。
+
+    用于在不安装数据库服务的情况下起服务、跑通 API 结构。
+    仅供测试，切勿用于生产。通过环境变量 CAMPUS_CONFIG=testing 启用。
+    """
+    DEBUG = True
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL', 'sqlite:///:memory:')
+    CACHE_TYPE = 'SimpleCache'
+
+
 class ProductionConfig(Config):
     DEBUG = False
 
@@ -61,6 +79,13 @@ class ProductionConfig(Config):
 
 config_map = {
     'development': DevelopmentConfig,
+    'testing': TestingConfig,
     'production': ProductionConfig,
     'default': DevelopmentConfig,
 }
+
+
+def get_config(name=None):
+    """按名称返回配置类，默认读取环境变量 CAMPUS_CONFIG。"""
+    name = (name or os.environ.get('CAMPUS_CONFIG') or 'default').lower()
+    return config_map.get(name, DevelopmentConfig)

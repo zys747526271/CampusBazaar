@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from flask_caching import Cache
-from backend.config import Config
+from backend.config import get_config
 from backend.routes import register_blueprints  # 假设 routes/__init__.py 已定义
 from datetime import datetime
 from backend.models import db
@@ -10,8 +10,12 @@ from backend.models import db
 cache = Cache()
 
 
-def create_app(config_class=Config):
+def create_app(config_class=None):
     app = Flask(__name__)
+    # 未显式传入时，按环境变量 CAMPUS_CONFIG 选择配置（development/testing/production）
+    config_class = config_class or get_config()
+    if config_class.__name__ == 'ProductionConfig':
+        config_class.validate()
     app.config.from_object(config_class)
 
     # 初始化扩展
@@ -169,4 +173,5 @@ def health_check():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # debug 由所选配置类的 DEBUG 决定，不再硬编码为 True
+    app.run(host='0.0.0.0', port=5000)

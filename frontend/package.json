@@ -1,6 +1,6 @@
 {
   "name": "campus-bazaar",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -8,17 +8,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.1.0",
-    "axios": "^1.8.4",
-    "element-plus": "^2.4.2",
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.21.1",
+    "element-plus": "^2.14.8",
     "js-sha256": "^0.11.0",
-    "pinia": "^2.1.7",
-    "vue": "^3.3.4",
-    "vue-router": "^4.2.5"
+    "pinia": "^3.0.4",
+    "vue": "^3.5.46",
+    "vue-router": "^4.6.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^4.4.0",
-    "sass": "^1.69.5",
-    "vite": "^4.5.0"
+    "@vitejs/plugin-vue": "^5.2.4",
+    "sass": "^1.108.2",
+    "vite": "^6.4.6"
   }
 }

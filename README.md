@@ -19,8 +19,8 @@ CampusBazaar 由两个早期原型项目整合而来，目标是提供一个目�
 
 ## 2. 技术栈
 
-**后端（主）**：Flask 2.3 + Flask-SQLAlchemy（MySQL）+ Flask-Caching（Redis）+ 手写 JWT 鉴权 + PyJWT
-**前端（主）**：Vue 3 + Vite + Pinia + Element Plus + Axios
+**后端（主）**：Flask 3.1 + Flask-SQLAlchemy 3.1（MySQL）+ Flask-Caching 2.5（Redis）+ 手写 JWT 鉴权 + PyJWT 2.15
+**前端（主）**：Vue 3.5 + Vite 6 + Pinia 3 + Element Plus 2.4 + Axios 1.x
 **可选运行方式**：waitress（WSGI 服务器）
 
 > 说明：原始 demo 项目使用的是 Vue 2 + Element UI + Flask Session 方案，作为参考代码保留在 `reference/`，未合并进主工程，避免两套技术栈互相污染。
@@ -63,10 +63,12 @@ CampusBazaar/
 
 ## 4. 快速开始
 
+> 完整、逐步的运行与测试方法（含免数据库的快速冒烟模式）见 **`docs/06-本地运行与测试指南.md`**。
+
 ### 4.1 准备工具
 
 项目附带的便携 Python 位于同级目录 `../tool/python-win/`（WorkBuddy 便携运行时，Python 3.11）。
-也可以直接使用系统已安装的 Python 3.9+。
+也可以直接使用系统已安装的 Python 3.11+。
 
 ```bash
 # 用便携 Python（从项目根目录执行，按实际路径调整）
@@ -122,4 +124,4 @@ npm run dev
 - `demo-----`（Vue 2 + Flask Session 商城）
 - `FlaskWebProject`（Vue 3 + Flask JWT 校园二手平台）
 
-原项目许可：MIT。整合后的代码沿用 MIT 许可，见 `LICENSE`。
+整合后的代码采用 **Apache License 2.0**，见 `LICENSE`（原项目声明为 MIT，其许可条款仍归原作者所有）。

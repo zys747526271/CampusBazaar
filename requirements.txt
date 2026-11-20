@@ -1,12 +1,14 @@
-# ===== 后端依赖（在工具 Python 或任意 Python 3.9+ 环境下安装）=====
-Flask==2.3.2
-Flask-SQLAlchemy==3.0.5
-Flask-Caching==2.0.2
-Flask-CORS==4.0.0
-python-dotenv==1.0.0
-PyJWT==2.8.0
-cryptography==42.0.5
-redis==5.0.1
-PyMySQL==1.0.2
-requests==2.31.0
-waitress==2.1.2
+# ===== 后端依赖（Flask 3 技术栈，Python >= 3.11）=====
+# 经版本兼容性核验：Flask-Caching 2.5 要求 Flask>=3.0 且 Python>=3.11；
+# 便携 Python 3.11.9 / 系统 Python 3.13 均可满足。
+Flask==3.1.3
+Flask-SQLAlchemy==3.1.1
+Flask-Caching==2.5.1
+Flask-CORS==6.0.5
+python-dotenv==1.2.4
+PyJWT==2.15.1
+cryptography==46.0.3
+redis==8.1.0
+PyMySQL==1.2.4
+requests==2.34.2
+waitress==3.0.2
