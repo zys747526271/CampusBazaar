@@ -1,4 +1,4 @@
-// 注意：本文件为原项目遗留工具，当前未被任何页面引用（死代码）。
+// 注意：当前未被任何页面引用（死代码），保留备查。
 // 它依赖的 'fernet' 包未在 package.json 中声明，若日后启用需先执行 npm install fernet。
 import fernet from 'fernet';
 
