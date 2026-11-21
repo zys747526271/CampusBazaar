@@ -92,7 +92,7 @@ onBeforeUnmount(stopBanner)
             <span class="rail-cta-icon"><AppIcon name="gift" :size="17" /></span>
             <div>
               <strong>闲置变现</strong>
-              <small>免费发布 · 同校面交</small>
+              <small>免费发布 · 同校自提</small>
             </div>
             <AppIcon name="chevron-right" :size="14" class="rail-cta-arrow" />
           </RouterLink>
@@ -186,7 +186,7 @@ onBeforeUnmount(stopBanner)
               <AppIcon name="bell" :size="14" /> 平台公告
             </div>
             <ul>
-              <li>交易请尽量选择校内面交，当面验货。</li>
+              <li>交易请尽量选择校内自提，当面验货。</li>
               <li>线下支付订单需卖家确认收款后发货。</li>
               <li>遇到违规商品可在详情页举报。</li>
             </ul>
@@ -270,7 +270,7 @@ onBeforeUnmount(stopBanner)
               <AppImage :src="item.cover_image" :alt="item.name" :ratio="'1 / 1'" radius="10px" class="latest-img" />
               <div class="latest-body">
                 <h3 class="clamp-2">{{ item.name }}</h3>
-                <p class="text-xs text-muted">{{ item.location || '校内面交' }} · {{ relativeTime(item.created_at) }}</p>
+                <p class="text-xs text-muted">{{ item.location || '校内自提' }} · {{ relativeTime(item.created_at) }}</p>
                 <div class="latest-price">
                   <span class="price price-sm"><span class="unit">¥</span>{{ money(item.price) }}</span>
                   <span class="tag tag-line">{{ item.condition }}</span>

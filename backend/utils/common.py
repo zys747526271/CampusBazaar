@@ -37,6 +37,20 @@ def days_later(days: int) -> datetime:
     return utcnow() + timedelta(days=days)
 
 
+def parse_local_datetime(value: str | None) -> datetime | None:
+    """解析前端传来的时间：无时区按东八区理解，统一转 UTC。"""
+    if not value:
+        return None
+    text = str(value).strip().replace(" ", "T")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError("时间格式不正确，请使用 YYYY-MM-DDTHH:MM") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=CST)
+    return parsed.astimezone(timezone.utc)
+
+
 def to_decimal(value, field: str = "金额") -> Decimal:
     """把任意输入转成两位小数 Decimal；非法输入抛 ValueError。"""
     if isinstance(value, Decimal):

@@ -27,10 +27,21 @@ const query = computed(() => route.query)
 
 const activeTag = computed(() => Number(route.query.tag_id) || 0)
 const activeCondition = computed(() => route.query.condition || '')
+const activeDelivery = computed(() => route.query.delivery || '')
+const freeShipping = computed(() => route.query.free_shipping === '1')
 const activeSort = computed(() => route.query.sort || 'created_at')
 const keyword = computed(() => route.query.keyword || '')
 const hasFilter = computed(
-  () => Boolean(route.query.tag_id || route.query.keyword || route.query.min_price || route.query.max_price || route.query.condition)
+  () =>
+    Boolean(
+      route.query.tag_id ||
+        route.query.keyword ||
+        route.query.min_price ||
+        route.query.max_price ||
+        route.query.condition ||
+        route.query.delivery ||
+        route.query.free_shipping
+    )
 )
 
 const sortOptions = [
@@ -84,6 +95,8 @@ const selectTag = (id) => updateQuery({ tag_id: id || undefined })
 const setSort = (value) => updateQuery({ sort: value })
 const toggleSortOrder = () => updateQuery({ order: route.query.order === 'asc' ? 'desc' : 'asc' })
 const selectCondition = (value) => updateQuery({ condition: activeCondition.value === value ? undefined : value })
+const selectDelivery = (value) => updateQuery({ delivery: activeDelivery.value === value ? undefined : value })
+const toggleFreeShipping = () => updateQuery({ free_shipping: freeShipping.value ? undefined : 1 })
 const selectPrice = (range) => updateQuery({ min_price: range.min, max_price: range.max })
 const applyPrice = () => {
   updateQuery({ min_price: minInput.value || undefined, max_price: maxInput.value || undefined })
@@ -177,6 +190,15 @@ onMounted(async () => {
         </div>
 
         <div class="filter-block">
+          <h4>履约方式</h4>
+          <div class="chip-wrap">
+            <button type="button" class="chip" :class="{ on: activeDelivery === 'pickup' }" @click="selectDelivery('pickup')">支持自提</button>
+            <button type="button" class="chip" :class="{ on: activeDelivery === 'express' }" @click="selectDelivery('express')">支持快递</button>
+            <button type="button" class="chip" :class="{ on: freeShipping }" @click="toggleFreeShipping">仅看包邮</button>
+          </div>
+        </div>
+
+        <div class="filter-block">
           <h4>成色</h4>
           <div class="chip-wrap">
             <button
@@ -232,6 +254,8 @@ onMounted(async () => {
         <div v-if="hasFilter" class="active-filters">
           <span v-if="keyword" class="tag tag-brand">关键词：{{ keyword }}</span>
           <span v-if="activeCondition" class="tag tag-brand">成色：{{ activeCondition }}</span>
+          <span v-if="activeDelivery" class="tag tag-brand">履约：{{ activeDelivery === 'pickup' ? '支持自提' : '支持快递' }}</span>
+          <span v-if="freeShipping" class="tag tag-brand">仅看包邮</span>
           <span v-if="activePriceLabel" class="tag tag-brand">价格：{{ activePriceLabel }}</span>
           <button class="btn-text" type="button" @click="resetFilters">清空筛选</button>
         </div>

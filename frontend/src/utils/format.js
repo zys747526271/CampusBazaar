@@ -71,7 +71,8 @@ export const ORDER_ACTION_TEXT = {
   refund_approve: '同意退款',
   refund_reject: '驳回退款',
   admin_cancel: '取消订单',
-  cancel_refund: '撤销退款申请'
+  cancel_refund: '撤销退款申请',
+  set_pickup_time: '确认自提时间'
 }
 
 export const PRODUCT_STATUS_TONE = {
@@ -82,9 +83,33 @@ export const PRODUCT_STATUS_TONE = {
 
 export const CONDITION_LIST = ['全新', '几乎全新', '轻微使用', '明显使用']
 
-export const DELIVERY_LIST = ['自提', '面交', '快递']
+//: 履约方式：v2.2 起「面交」并入「自提」
+export const DELIVERY_LIST = ['自提', '快递']
 
-export const PAY_LIST = ['余额', '线下']
+//: 各履约方式可用的支付方式（服务端也会校验）
+export const PAY_METHODS_BY_DELIVERY = {
+  自提: ['余额', '线下'],
+  快递: ['余额']
+}
+
+//: 地址数量超过该值时，结算页改用下拉选择，避免纵向过长
+export const ADDRESS_DROPDOWN_THRESHOLD = 4
+
+/** 商品卡片/详情用的履约标签 */
+export const deliveryLabels = (product) => {
+  if (!product) return []
+  if (Array.isArray(product.delivery_labels) && product.delivery_labels.length) return product.delivery_labels
+  const labels = []
+  if (product.supports_pickup) labels.push('自提')
+  if (product.supports_express) labels.push(product.free_shipping ? '包邮' : '快递')
+  return labels
+}
+
+export const shippingText = (product) => {
+  if (!product || !product.supports_express) return ''
+  if (product.free_shipping) return '包邮'
+  return `运费 ¥${money(product.shipping_fee)}`
+}
 
 export const REPORT_REASONS = ['虚假信息', '违禁物品', '价格欺诈', '辱骂骚扰', '联系方式引流', '其他']
 

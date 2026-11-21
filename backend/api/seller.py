@@ -107,6 +107,25 @@ def _apply_product_fields(product: Product, payload: Payload, user, creating: bo
         "condition", ProductCondition.ALL, required=False, default=product.product_condition, label="成色"
     )
     product.location = payload.text("location", required=False, max_len=60, label="交易地点")
+
+    # ---- 履约方式（v2.2）：自提点可留空，快递需明确包邮与运费 ----
+    supports_pickup = payload.boolean("supports_pickup", default=True)
+    supports_express = payload.boolean("supports_express", default=True)
+    if not supports_pickup and not supports_express:
+        raise bad_request("至少选择一种履约方式", {"supports_pickup": "自提与快递至少选一个"})
+    pickup_location = payload.text("pickup_location", required=False, max_len=120, label="自提点")
+    free_shipping = payload.boolean("free_shipping", default=True)
+    shipping_fee = payload.decimal(
+        "shipping_fee", required=False, min_value=Decimal("0"), max_value=Decimal("9999"), label="运费", default=Decimal("0")
+    )
+    if supports_express and not free_shipping and shipping_fee <= 0:
+        raise bad_request("不包邮时请填写运费", {"shipping_fee": "运费必须大于 0"})
+    product.supports_pickup = supports_pickup
+    product.pickup_location = pickup_location.strip()[:120]
+    product.supports_express = supports_express
+    product.free_shipping = free_shipping if supports_express else True
+    product.shipping_fee = Decimal("0.00") if (free_shipping or not supports_express) else shipping_fee
+
     images = payload.str_list("images", max_items=Limits.PRODUCT_MAX_IMAGES, max_len=255, label="图片")
     if creating and not images:
         raise bad_request("请至少上传一张商品图片", {"images": "至少 1 张图片"})
@@ -261,6 +280,22 @@ def ship(order_id: int):
         raise bad_request("请填写快递公司", {"ship_company": "快递公司不能为空"})
     order_service.ship_order(order, user, ship_company=company, tracking_no=tracking_no, note=note)
     return ok(order_view(order, "seller"), "发货成功")
+
+
+@bp.post("/orders/<int:order_id>/pickup-location")
+@seller_required
+def set_pickup_location(order_id: int):
+    user = current_user()
+    order = Order.query.filter(Order.id == order_id).first()
+    if order is None:
+        raise not_found("订单不存在")
+    if order.seller_id != user.id:
+        raise forbidden("只能操作自己的订单")
+    payload = Payload(request.get_json(silent=True))
+    location = payload.text("pickup_location", min_len=2, max_len=120, label="自提点")
+    payload.done()
+    order_service.set_pickup_location(order, user, location)
+    return ok(order_view(order, "seller"), "自提点已更新并通知买家")
 
 
 @bp.post("/orders/<int:order_id>/confirm-paid")

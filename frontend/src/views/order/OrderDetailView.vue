@@ -22,10 +22,24 @@ const busy = ref(false)
 
 const refundOpen = ref(false)
 const refundReason = ref('')
+const pickupOpen = ref(false)
+const pickupValue = ref('')
+const pickupBusy = ref(false)
+const snapshotOpen = ref(false)
+const snapshotLoading = ref(false)
+const snapshot = ref(null)
 const commentOpen = ref(false)
 const commentTarget = ref(null)
 const commentForm = reactive({ rating: 5, content: '' })
 const commentBusy = ref(false)
+
+const toLocalInput = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 const steps = computed(() => {
   if (!order.value) return []
@@ -81,7 +95,18 @@ const act = async (action) => {
     })
     return
   }
+  if (action === 'set_pickup_time') {
+    pickupValue.value = toLocalInput(current.pickup_time)
+    pickupOpen.value = true
+    return
+  }
   if (action === 'confirm') {
+    if (current.is_pickup && !current.pickup_time) {
+      pickupValue.value = ''
+      pickupOpen.value = true
+      toastError('自提订单请先确认自提时间')
+      return
+    }
     const ok = await confirmAction({
       title: '确认收货',
       message: '请确认已收到商品并当面验货，确认后货款结算给卖家。',
@@ -145,6 +170,38 @@ const run = async (fn) => {
     toastError(error.message)
   } finally {
     busy.value = false
+  }
+}
+
+const submitPickupTime = async () => {
+  if (!pickupValue.value) {
+    toastError('请选择自提时间')
+    return
+  }
+  pickupBusy.value = true
+  try {
+    await orderApi.pickupTime(order.value.id, pickupValue.value)
+    toastSuccess('自提时间已确认，已通知卖家')
+    pickupOpen.value = false
+    await load()
+  } catch (error) {
+    toastError(error.message)
+  } finally {
+    pickupBusy.value = false
+  }
+}
+
+const openSnapshot = async () => {
+  snapshotOpen.value = true
+  snapshotLoading.value = true
+  snapshot.value = null
+  try {
+    snapshot.value = await orderApi.snapshot(order.value.id)
+  } catch (error) {
+    toastError(error.message)
+    snapshotOpen.value = false
+  } finally {
+    snapshotLoading.value = false
   }
 }
 
@@ -256,7 +313,24 @@ onMounted(load)
           <div><span>联系电话</span><p>{{ order.receiver_phone }}</p></div>
           <div><span>履约方式</span><p>{{ order.delivery_type }}</p></div>
           <div><span>支付方式</span><p>{{ order.pay_method }}</p></div>
-          <div class="wide"><span>交易地点 / 地址</span><p>{{ order.address_text || '校内面交，具体地点与卖家沟通' }}</p></div>
+          <div class="wide">
+            <span>{{ order.is_pickup ? '自提点' : '收货地址' }}</span>
+            <p>
+              {{ order.is_pickup ? (order.pickup_location || '卖家待补充自提点') : (order.address_text || '-') }}
+              <button
+                v-if="order.is_pickup && order.actions.includes('set_pickup_time')"
+                class="btn-text ml-8"
+                type="button"
+                @click="act('set_pickup_time')"
+              >
+                {{ order.pickup_time ? '修改自提时间' : '确认自提时间' }}
+              </button>
+            </p>
+          </div>
+          <div v-if="order.is_pickup" class="wide">
+            <span>约定自提时间</span>
+            <p :class="{ 'text-danger': !order.pickup_time }">{{ order.pickup_time ? dateTime(order.pickup_time) : '待确认（确认收货前必须填写）' }}</p>
+          </div>
           <div v-if="order.ship_company || order.tracking_no" class="wide">
             <span>物流信息</span><p>{{ order.ship_company }} {{ order.tracking_no }}</p>
           </div>
@@ -269,9 +343,14 @@ onMounted(load)
       <section class="panel">
         <div class="block-head">
           <h2 class="block-title">商品清单</h2>
-          <RouterLink v-if="order.seller" :to="`/shops/${order.seller.id}`" class="text-sm link">
-            卖家：{{ order.seller.nickname }}
-          </RouterLink>
+          <div class="head-ops">
+            <button class="btn btn-sm" type="button" @click="openSnapshot">
+              <AppIcon name="shield" :size="14" /> 交易快照
+            </button>
+            <RouterLink v-if="order.seller" :to="`/shops/${order.seller.id}`" class="text-sm link">
+              卖家：{{ order.seller.nickname }}
+            </RouterLink>
+          </div>
         </div>
         <ul class="items">
           <li v-for="item in order.items" :key="item.id" class="item">
@@ -302,7 +381,11 @@ onMounted(load)
 
         <div class="amounts">
           <div class="row"><span>商品金额</span><span>¥{{ money(order.items_total) }}</span></div>
-          <div class="row"><span>运费</span><span>{{ order.shipping_fee ? `¥${money(order.shipping_fee)}` : '¥0.00（校内自提）' }}</span></div>
+          <div class="row">
+            <span>运费</span>
+            <span v-if="order.shipping_fee">¥{{ money(order.shipping_fee) }}</span>
+            <span v-else>{{ order.is_pickup ? '¥0.00（自提免运费）' : '包邮' }}</span>
+          </div>
           <div class="row total"><span>实付金额</span><span class="price price-md"><span class="unit">¥</span>{{ money(order.total_amount) }}</span></div>
         </div>
       </section>
@@ -313,6 +396,40 @@ onMounted(load)
         <template v-if="order.finished_at"> · 完成于 {{ dateTime(order.finished_at) }}</template>
       </p>
     </template>
+
+    <AppModal v-model="pickupOpen" title="确认自提时间" width="440px">
+      <p class="text-sm text-muted">与卖家约定到自提点验货的时间，确认后会通知卖家。</p>
+      <div v-if="order?.pickup_location" class="alert alert-info mt-12">自提点：{{ order.pickup_location }}</div>
+      <div class="alert alert-warn mt-8" v-else>卖家还未填写自提点，可先约定时间，地点补充后会通知你。</div>
+      <div class="field mt-12">
+        <label>自提时间</label>
+        <input v-model="pickupValue" type="datetime-local" class="input" />
+      </div>
+      <template #footer>
+        <button class="btn" type="button" @click="pickupOpen = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="pickupBusy" @click="submitPickupTime">
+          {{ pickupBusy ? '提交中…' : '确认时间' }}
+        </button>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="snapshotOpen" title="交易快照" width="900px">
+      <div v-if="snapshotLoading" class="snapshot-loading">
+        <SkeletonBlock :h="24" w="40%" />
+        <SkeletonBlock :h="160" />
+      </div>
+      <div v-else-if="snapshot" class="snapshot-body">
+        <div class="snapshot-meta">
+          <span>下单时间：{{ dateTime(snapshot.created_at) }}</span>
+          <a v-if="snapshot.html_url" :href="snapshot.html_url" target="_blank" rel="noopener" class="link">在新窗口打开完整快照</a>
+        </div>
+        <iframe v-if="snapshot.html_url" :src="snapshot.html_url" class="snapshot-frame" title="交易快照" />
+        <p v-else class="text-sm text-muted">快照文件不可用，以下是结构化内容。</p>
+      </div>
+      <template #footer>
+        <button class="btn" type="button" @click="snapshotOpen = false">关闭</button>
+      </template>
+    </AppModal>
 
     <AppModal v-model="refundOpen" title="申请退款" width="440px">
       <div class="field">
@@ -353,6 +470,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+.head-ops { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ml-8 { margin-left: 8px; }
+.snapshot-body { display: flex; flex-direction: column; gap: 10px; }
+.snapshot-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+.snapshot-frame { width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.snapshot-loading { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 720px) { .snapshot-frame { height: 380px; } }
 .order-detail { display: flex; flex-direction: column; gap: 14px; }
 .loading { display: flex; flex-direction: column; gap: 14px; }
 .back { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; color: var(--muted); font-size: 13px; padding: 0; }

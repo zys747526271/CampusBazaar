@@ -52,6 +52,15 @@ def apply_filters(query, args) -> object:
     if args.get("featured") in ("1", "true"):
         query = query.filter(Product.is_featured.is_(True))
 
+    # 履约筛选：自提 / 快递 / 包邮（v2.2）
+    delivery = (args.get("delivery") or "").strip()
+    if delivery == "pickup":
+        query = query.filter(Product.supports_pickup.is_(True))
+    elif delivery == "express":
+        query = query.filter(Product.supports_express.is_(True))
+    if args.get("free_shipping") in ("1", "true"):
+        query = query.filter(Product.supports_express.is_(True), Product.free_shipping.is_(True))
+
     return query
 
 

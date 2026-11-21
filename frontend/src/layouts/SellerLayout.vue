@@ -58,7 +58,7 @@ const becomeSeller = async () => {
             <span class="avatar"><AppIcon name="shop" :size="18" /></span>
             <div>
               <strong>{{ auth.displayName }}的小店</strong>
-              <p class="text-xs text-muted">校内面交 · 实时履约</p>
+              <p class="text-xs text-muted">校内自提 · 实时履约</p>
             </div>
           </div>
           <nav class="menu">
@@ -94,7 +94,7 @@ const becomeSeller = async () => {
         </p>
         <ul class="benefits">
           <li><AppIcon name="check-circle" :size="16" /> 免费发布，卖出后货款进余额</li>
-          <li><AppIcon name="check-circle" :size="16" /> 同校面交，免运费、当面验货</li>
+          <li><AppIcon name="check-circle" :size="16" /> 同校自提免运费，快递按商品计费</li>
           <li><AppIcon name="check-circle" :size="16" /> 经营看板，销量库存一目了然</li>
         </ul>
         <button class="btn btn-primary btn-lg" type="button" :disabled="joining" @click="becomeSeller">

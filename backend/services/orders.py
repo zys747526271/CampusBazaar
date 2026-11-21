@@ -7,12 +7,13 @@
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import update
 
 from backend.constants import (
+    PAY_METHODS_BY_DELIVERY,
     BalanceLogType,
     DeliveryType,
     Limits,
@@ -25,7 +26,7 @@ from backend.constants import (
 from backend.errors import bad_request, conflict, forbidden, not_found
 from backend.extensions import db
 from backend.models import Balance, BalanceLog, Order, OrderItem, OrderStatusLog, Product, User
-from backend.utils.common import order_no, utcnow
+from backend.utils.common import ensure_aware, order_no, parse_local_datetime, utcnow
 from backend.utils.notify import notify
 
 ZERO = Decimal("0.00")
@@ -139,11 +140,17 @@ def create_orders(
     receiver_phone: str,
     address_text: str,
     remark: str = "",
+    pickup_time: datetime | None = None,
 ) -> list[Order]:
-    if pay_method not in PayMethod.SUPPORTED:
-        raise bad_request("暂不支持该支付方式")
+    delivery_type = DeliveryType.normalize(delivery_type)
     if delivery_type not in DeliveryType.ALL:
         raise bad_request("履约方式不合法")
+    allowed_pay = PAY_METHODS_BY_DELIVERY.get(delivery_type, PayMethod.SUPPORTED)
+    if pay_method not in allowed_pay:
+        raise bad_request(
+            "快递订单不支持线下支付" if delivery_type == DeliveryType.EXPRESS else "暂不支持该支付方式",
+            {"pay_method": "快递订单请选择余额支付"},
+        )
     if not items:
         raise bad_request("请选择要购买的商品")
     if len(items) > Limits.ORDER_MAX_ITEMS:
@@ -174,6 +181,13 @@ def create_orders(
             raise conflict(f"《{product.name}》已下架，无法购买")
         if product.quantity < merged[product.id]:
             raise conflict(f"《{product.name}》库存不足，仅剩 {max(product.quantity, 0)} 件")
+        if delivery_type == DeliveryType.PICKUP and not product.supports_pickup:
+            raise bad_request(f"《{product.name}》不支持自提，请选择快递")
+        if delivery_type == DeliveryType.EXPRESS and not product.supports_express:
+            raise bad_request(f"《{product.name}》不支持快递，请选择自提")
+
+    if delivery_type == DeliveryType.EXPRESS and not (receiver_name and receiver_phone and address_text):
+        raise bad_request("快递发货请选择收货地址", {"address_id": "请选择收货地址"})
 
     # 逐件条件扣减库存（并发下只有一句 UPDATE 成功）
     for product in products:
@@ -200,6 +214,14 @@ def create_orders(
     orders: list[Order] = []
     for seller_id, seller_products in grouped.items():
         items_total = ZERO
+        shipping_fee = ZERO
+        pickup_location = ""
+        for product in seller_products:
+            if delivery_type == DeliveryType.EXPRESS:
+                # 同一卖家合并发货，按最高一档运费收取，避免重复计费
+                shipping_fee = max(shipping_fee, Decimal(product.shipping_amount))
+            elif not pickup_location and (product.pickup_location or "").strip():
+                pickup_location = product.pickup_location.strip()
         order = Order(
             order_no=_unique_order_no(),
             user_id=user.id,
@@ -211,6 +233,10 @@ def create_orders(
             receiver_phone=receiver_phone,
             address_text=address_text,
             remark=remark[:200],
+            pickup_location=pickup_location,
+            pickup_time=pickup_time if delivery_type == DeliveryType.PICKUP else None,
+            pickup_location_set_at=utcnow() if pickup_location else None,
+            shipping_fee=shipping_fee,
             pay_deadline=utcnow() + timedelta(minutes=Limits.ORDER_PAY_TIMEOUT_MINUTES),
         )
         db.session.add(order)
@@ -231,9 +257,12 @@ def create_orders(
                 )
             )
         order.items_total = items_total
-        order.shipping_fee = ZERO
-        order.total_amount = items_total
+        order.total_amount = items_total + shipping_fee
         _log(order, "", OrderStatus.UNPAID, OperatorType.BUYER, user.id, user.nickname, "提交订单")
+        # 交易快照：下单瞬间固化商品介绍页与详情页，供后续纠纷取证
+        from backend.services.snapshots import ensure_snapshot
+
+        ensure_snapshot(order)
         notify(
             seller_id,
             MessageType.ORDER,
@@ -346,6 +375,8 @@ def confirm_order(order: Order, user: User) -> Order:
     _ensure_owner(order, user)
     if order.status != OrderStatus.SHIPPED:
         raise conflict("只有已发货订单可以确认收货")
+    if order.is_pickup and not order.pickup_time:
+        raise conflict("请先确认自提时间", {"pickup_time": "自提订单需要先约定自提时间"})
     _transition(order, OrderStatus.DONE, OperatorType.BUYER, user.id, user.nickname, "买家确认收货")
     order.finished_at = utcnow()
     _apply_sales(order, 1)
@@ -396,6 +427,80 @@ def cancel_order(order: Order, operator_type: str, operator, reason: str = "") -
         f"/orders/{order.id}",
     )
     return order
+
+
+# ------------------------------------------------------------------ 自提
+def set_pickup_location(order: Order, seller: User, location: str) -> Order:
+    """卖家补录自提点：商品未填自提点时，下单后由卖家填写并推送买家。"""
+    _ensure_seller(order, seller)
+    if not order.is_pickup:
+        raise bad_request("该订单不是自提订单")
+    if order.status in (OrderStatus.CANCELLED, OrderStatus.DONE):
+        raise conflict("订单已结束，无法修改自提点")
+    text = (location or "").strip()
+    if len(text) < 2:
+        raise bad_request("请填写有效自提点", {"pickup_location": "自提点至少 2 个字"})
+    order.pickup_location = text[:120]
+    order.pickup_location_set_at = utcnow()
+    _log(
+        order,
+        order.status,
+        order.status,
+        OperatorType.SELLER,
+        seller.id,
+        seller.nickname,
+        f"设置自提点：{order.pickup_location}",
+    )
+    notify(
+        order.user_id,
+        MessageType.ORDER,
+        "卖家已设置自提点",
+        f"订单 {order.order_no} 自提点：{order.pickup_location}，请确认自提时间。",
+        f"/orders/{order.id}",
+    )
+    db.session.commit()
+    db.session.refresh(order)
+    return order
+
+
+def set_pickup_time(order: Order, user: User, pickup_time: datetime) -> Order:
+    """买家确认自提时间；确认收货前必须完成。"""
+    _ensure_owner(order, user)
+    if not order.is_pickup:
+        raise bad_request("该订单不是自提订单")
+    if order.status in (OrderStatus.CANCELLED, OrderStatus.DONE, OrderStatus.REFUNDING):
+        raise conflict("订单已结束，无法修改自提时间")
+    if pickup_time is None:
+        raise bad_request("请选择自提时间", {"pickup_time": "自提时间不能为空"})
+    if ensure_aware(pickup_time) < utcnow() - timedelta(minutes=5):
+        raise bad_request("自提时间不能早于当前时间", {"pickup_time": "请选择将来的时间"})
+    order.pickup_time = pickup_time
+    order.pickup_time_confirmed_at = utcnow()
+    _log(
+        order,
+        order.status,
+        order.status,
+        OperatorType.BUYER,
+        user.id,
+        user.nickname,
+        f"确认自提时间：{iso_local(pickup_time)}",
+    )
+    notify(
+        order.seller_id,
+        MessageType.ORDER,
+        "买家已确认自提时间",
+        f"订单 {order.order_no} 约定自提时间：{iso_local(pickup_time)}。",
+        "/seller/orders",
+    )
+    db.session.commit()
+    db.session.refresh(order)
+    return order
+
+
+def iso_local(value) -> str:
+    from backend.utils.common import iso
+
+    return iso(value) or ""
 
 
 # ------------------------------------------------------------------ 退款
@@ -504,7 +609,7 @@ def expire_unpaid_orders(limit: int = 200) -> int:
 
 
 def auto_confirm_shipped(days: int = 7, limit: int = 200) -> int:
-    from datetime import timedelta
+    from datetime import datetime, timedelta
 
     deadline = utcnow() - timedelta(days=days)
     orders = (

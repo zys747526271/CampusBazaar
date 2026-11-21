@@ -74,8 +74,8 @@ Authorization: Bearer <token>
 | --- | --- |
 | 商品状态 | 待审核 / 已通过 / 已下架 |
 | 订单状态 | 待付款 / 已付款 / 已发货 / 已完成 / 已取消 / 退款中 |
-| 支付方式 | 余额 / 线下（微信、支付宝为预留） |
-| 履约方式 | 自提 / 面交 / 快递 |
+| 支付方式 | 余额 / 线下（快递订单仅余额；微信、支付宝为预留） |
+| 履约方式 | 自提 / 快递（`面交` 为历史值，读取时归一为自提） |
 | 成色 | 全新 / 几乎全新 / 轻微使用 / 明显使用 |
 
 ## 2. 认证 `/api/auth`
@@ -116,13 +116,14 @@ Authorization: Bearer <token>
 | GET | `/meta/home` | 首页聚合：`banners`、`tags`、`blocks.recommended/hot/latest`、`hot_keywords` |
 | GET | `/meta/filters` | 分类、成色、履约/支付方式、排序选项 |
 | GET | `/meta/options` | 下单相关枚举、举报原因、图片上限 |
-| GET | `/products` | 列表/搜索/筛选：`keyword tag_id min_price max_price condition sort order page per_page` |
+| GET | `/products` | 列表/搜索/筛选：`keyword tag_id min_price max_price condition delivery(pickup/express) free_shipping(1) sort order page per_page` |
 | GET | `/products/{id}` | 详情：含 `rating` 评分统计、`favorited`、`related`、`cart_quantity` |
 | GET | `/products/{id}/related` | 相关推荐 |
 | GET | `/products/{id}/comments` | 评价列表（`sort=newest/helpful/rating`）+ `summary` |
 | GET | `/tags` | 启用中的平台分类 |
 | GET | `/shops/{seller_id}` | 店铺主页与统计 |
 | GET | `/shops/{seller_id}/products` | 店铺在售商品 |
+| GET | `/shops/{seller_id}/comments` | 店铺历史评价（含已售出/已下架商品）+ `summary` 评分统计 |
 | GET | `/search/suggest` | 搜索联想：`{keywords, products}` |
 | GET | `/health` | 健康检查：`{status, db, cache, env, version}` |
 
@@ -139,6 +140,9 @@ Authorization: Bearer <token>
   "quantity": 1, "sales": 0, "views": 123,
   "condition": "轻微使用",
   "status": "已通过", "is_available": true, "is_on_sale": true, "stock_state": "在售",
+  "supports_pickup": true, "pickup_location": "3 号宿舍楼下",
+  "supports_express": true, "free_shipping": false, "shipping_fee": 12.0,
+  "delivery_labels": ["自提", "快递"],
   "tag": { "id": 2, "name": "数码电子" },
   "seller": { "id": 1, "nickname": "林小满", "rating": 5.0, "sold_count": 2 },
   "created_at": "2026-11-20T21:00:00+08:00"
@@ -166,13 +170,15 @@ Authorization: Bearer <token>
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
 | POST | `/orders/preview` | 用户 | 结算预览，金额与实付同源计算 |
-| POST | `/orders` | 用户 | 下单，支持 `Idempotency-Key` |
+| POST | `/orders` | 用户 | 下单，支持 `Idempotency-Key`；快递必须传 `address_id` |
 | GET | `/orders` | 用户 | 我的订单，`status` 筛选 |
 | GET | `/orders/counts` | 用户 | 各状态数量 |
 | GET | `/orders/{id}` | 买卖双方 | 详情：商品快照、金额、时间线、`actions` |
 | POST | `/orders/{id}/pay` | 买家 | 余额支付（线下支付不可调用） |
 | POST | `/orders/{id}/cancel` | 买家 | `{reason}` |
-| POST | `/orders/{id}/confirm` | 买家 | 确认收货 |
+| POST | `/orders/{id}/confirm` | 买家 | 确认收货；自提订单未确认自提时间返回 409 |
+| POST | `/orders/{id}/pickup-time` | 买家 | `{pickup_time}`，自提订单约定时间并通知卖家 |
+| GET | `/orders/{id}/snapshot` | 买卖双方 | 交易快照：`{html_url, data, created_at}` |
 | POST | `/orders/{id}/refund` | 买家 | `{reason}` → 退款中 |
 
 下单请求：
@@ -184,11 +190,11 @@ Authorization: Bearer <token>
   "cart_ids": [12, 13],
   "address_id": 3,
   "pay_method": "余额",
-  "delivery_type": "面交",
-  "remark": "晚上 7 点后图书馆门口"
+  "delivery_type": "快递",
+  "remark": "工作日下午送"
 }
 
-// 立即购买（不传 address_id 时用 receiver_* 字段）
+// 立即购买（自提：用 receiver_* 与 pickup_time，不需要 address_id）
 {
   "source": "now",
   "items": [{ "product_id": 3, "quantity": 1 }],
@@ -196,9 +202,16 @@ Authorization: Bearer <token>
   "delivery_type": "自提",
   "receiver_name": "赵一鸣",
   "receiver_phone": "13800000004",
-  "address_text": "3 号宿舍楼下"
+  "address_text": "3 号宿舍楼下",
+  "pickup_time": "2026-11-25T15:30"
 }
 ```
+
+规则：
+
+- 快递只接受 `address_id`（地址簿），并只允许 `余额` 支付；自提可手填联系人与交易地点，支持 `余额/线下`。
+- 运费按卖家订单计算：该单商品运费取最高一档，`total_amount = items_total + shipping_fee`。
+- 自提点优先取商品配置；商品未填时置空，由卖家补录后推送买家。
 
 响应 `data`：`{orders: [...], order_ids: [], total_amount, pay_method}`。一次结算按卖家拆单，金额一律服务端计算。
 
@@ -209,7 +222,8 @@ Authorization: Bearer <token>
 | `pay` | 买家 | 待付款且为余额支付 |
 | `cancel` | 买家 | 待付款可取消 |
 | `refund` | 买家 | 已付款/已发货可申请退款 |
-| `confirm` | 买家 | 已发货可确认收货 |
+| `confirm` | 买家 | 已发货可确认收货（自提需先确认时间） |
+| `set_pickup_time` | 买家 | 自提订单尚未确认时间 |
 | `comment` | 买家 | 已完成且仍有未评价商品 |
 | `ship` | 卖家 | 已付款可发货 |
 | `confirm_paid` | 卖家 | 线下支付待确认收款 |
@@ -248,13 +262,14 @@ Authorization: Bearer <token>
 | POST | `/become` | 一键开通卖家 |
 | GET | `/overview` | 经营看板：今日/累计销售额、订单数、待发货、商品数、浏览量、最近订单、热销商品 |
 | GET | `/products` | 我的商品（状态、关键词、分页） |
-| POST | `/products` | 发布，`{name, description, price, original_price?, quantity, condition, location?, tag_id, seller_category_id?, images[]}` |
+| POST | `/products` | 发布，`{name, description, price, original_price?, quantity, condition, location?, tag_id, seller_category_id?, images[], supports_pickup, pickup_location?, supports_express, free_shipping, shipping_fee?}` |
 | GET/PUT | `/products/{id}` | 详情 / 编辑（PUT 需传完整字段） |
 | POST | `/products/{id}/toggle` | 上下架；`已下架` 重新上架时按 `AUTO_APPROVE_PRODUCT` 决定状态 |
 | DELETE | `/products/{id}` | 软删除；有进行中订单时 409 |
 | GET | `/orders` | 收到的订单，`status/keyword` 筛选 |
 | POST | `/orders/{id}/confirm-paid` | 确认线下收款 |
 | POST | `/orders/{id}/ship` | `{ship_company?, tracking_no?, note?}`，快递必填单号 |
+| POST | `/orders/{id}/pickup-location` | `{pickup_location}`，自提点补录并推送买家 |
 | POST | `/orders/{id}/close` | 关闭待付款订单 |
 | POST | `/orders/{id}/refund` | `{approve, note}` |
 | GET/POST | `/categories` | 自定义分类列表 / 新增 |
@@ -300,7 +315,8 @@ const data = await orderApi.create({
   source: 'now',
   items: [{ product_id: 3, quantity: 1 }],
   pay_method: '余额',
-  delivery_type: '面交',
+  delivery_type: '自提',
+  pickup_time: '2026-11-25T15:30',
   receiver_name: '赵一鸣',
   receiver_phone: '13800000004',
   address_text: '图书馆一楼'

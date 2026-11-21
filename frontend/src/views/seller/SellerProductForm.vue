@@ -34,7 +34,12 @@ const form = reactive({
   location: '',
   tag_id: '',
   seller_category_id: '',
-  images: []
+  images: [],
+  supports_pickup: true,
+  pickup_location: '',
+  supports_express: true,
+  free_shipping: true,
+  shipping_fee: ''
 })
 
 const maxImages = computed(() => app.options?.max_images || 5)
@@ -67,7 +72,12 @@ const loadProduct = async () => {
       location: data.location || '',
       tag_id: data.tag_id || '',
       seller_category_id: data.seller_category_id || '',
-      images: [...(data.images || [])]
+      images: [...(data.images || [])],
+      supports_pickup: data.supports_pickup !== false,
+      pickup_location: data.pickup_location || '',
+      supports_express: data.supports_express !== false,
+      free_shipping: data.free_shipping !== false,
+      shipping_fee: data.shipping_fee ? String(data.shipping_fee) : ''
     })
   } catch (error) {
     toastError(error.message)
@@ -142,6 +152,10 @@ const validate = () => {
   if (!price || price <= 0) errors.price = '请输入正确的价格'
   if (form.original_price && Number(form.original_price) < price) errors.original_price = '原价不能低于售价'
   if (!Number(form.quantity) || Number(form.quantity) < 1) errors.quantity = '库存至少为 1'
+  if (!form.supports_pickup && !form.supports_express) errors.delivery = '自提与快递至少选择一种'
+  if (form.supports_express && !form.free_shipping && !(Number(form.shipping_fee) > 0)) {
+    errors.shipping_fee = '不包邮时请填写运费'
+  }
   return Object.keys(errors).length === 0
 }
 
@@ -158,7 +172,12 @@ const submit = async () => {
     location: form.location.trim(),
     tag_id: Number(form.tag_id),
     seller_category_id: form.seller_category_id ? Number(form.seller_category_id) : 0,
-    images: form.images
+    images: form.images,
+    supports_pickup: form.supports_pickup,
+    pickup_location: form.pickup_location.trim(),
+    supports_express: form.supports_express,
+    free_shipping: form.free_shipping,
+    shipping_fee: form.supports_express && !form.free_shipping ? Number(form.shipping_fee).toFixed(2) : '0.00'
   }
   try {
     if (isEdit.value) {
@@ -284,6 +303,36 @@ onMounted(async () => {
         </section>
 
         <section class="panel">
+          <h2 class="block-title">履约方式</h2>
+          <p class="field-hint">自提即当面交易；快递需要填写运费或选择包邮。</p>
+
+          <label class="check mt-12">
+            <input v-model="form.supports_pickup" type="checkbox" /> 支持买家自提
+          </label>
+          <div v-if="form.supports_pickup" class="field mt-8">
+            <label>自提点（可留空）</label>
+            <input v-model="form.pickup_location" class="input" maxlength="120" placeholder="例如：图书馆一楼大厅 / 3 号宿舍楼下" />
+            <span class="field-hint">留空时，买家下单后由你补充自提点，系统会自动通知买家</span>
+          </div>
+
+          <label class="check mt-16">
+            <input v-model="form.supports_express" type="checkbox" /> 支持快递发货
+          </label>
+          <div v-if="form.supports_express" class="grid-2 mt-8">
+            <div class="field">
+              <label>邮费</label>
+              <label class="check"><input v-model="form.free_shipping" type="checkbox" /> 包邮</label>
+            </div>
+            <div v-if="!form.free_shipping" class="field">
+              <label>运费金额（元）</label>
+              <input v-model="form.shipping_fee" class="input" :class="{ 'has-error': errors.shipping_fee }" inputmode="decimal" placeholder="例如：12.00" />
+              <span v-if="errors.shipping_fee" class="field-error">{{ errors.shipping_fee }}</span>
+            </div>
+          </div>
+          <span v-if="errors.delivery" class="field-error">{{ errors.delivery }}</span>
+        </section>
+
+        <section class="panel">
           <div class="block-head">
             <h2 class="block-title">商品图片 <em>*</em></h2>
             <span class="text-sm text-muted">{{ form.images.length }}/{{ maxImages }} 张 · 第一张为封面</span>
@@ -325,6 +374,10 @@ onMounted(async () => {
             <span v-if="form.original_price" class="origin">¥{{ money(form.original_price) }}</span>
           </div>
           <span class="tag tag-line">{{ form.condition }}</span>
+          <div class="pv-delivery">
+            <span v-if="form.supports_pickup" class="tag tag-line">自提</span>
+            <span v-if="form.supports_express" class="tag tag-line">{{ form.free_shipping ? '包邮' : `运费 ¥${money(form.shipping_fee || 0)}` }}</span>
+          </div>
         </div>
 
         <div class="panel tips">
@@ -353,6 +406,9 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
+.check input { accent-color: var(--brand); }
+.pv-delivery { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .loading { display: flex; flex-direction: column; gap: 14px; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
 .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }

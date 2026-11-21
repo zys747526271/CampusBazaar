@@ -137,6 +137,12 @@ def product_card(product, seller_stats: dict | None = None) -> dict:
         "is_featured": product.is_featured,
         "is_on_sale": product.is_on_sale,
         "stock_state": product.stock_state,
+        "supports_pickup": bool(product.supports_pickup),
+        "pickup_location": product.pickup_location or "",
+        "supports_express": bool(product.supports_express),
+        "free_shipping": bool(product.free_shipping),
+        "shipping_fee": money(product.shipping_amount),
+        "delivery_labels": list(product.delivery_labels),
         "tag": {"id": product.tag.id, "name": product.tag.name} if product.tag else None,
         "seller": {
             **(user_brief(seller) or {}),
@@ -208,6 +214,9 @@ def comment_view(comment, viewer=None, liked: bool = False, *, with_product: boo
             "id": comment.product.id,
             "name": comment.product.name,
             "cover_image": comment.product.cover_image,
+            "status": comment.product.status,
+            "is_on_sale": comment.product.is_on_sale,
+            "stock_state": comment.product.stock_state,
         }
     if with_product:
         data["order_id"] = comment.order_id
@@ -289,6 +298,12 @@ def order_view(order, viewer_type: str = "buyer", commented_product_ids: set[int
         "delivery_type": order.delivery_type,
         "items_total": money(order.items_total),
         "shipping_fee": money(order.shipping_fee),
+        "is_pickup": order.is_pickup,
+        "pickup_location": order.pickup_location or "",
+        "pickup_time": iso(order.pickup_time),
+        "pickup_time_confirmed_at": iso(order.pickup_time_confirmed_at),
+        "needs_pickup_location": order.needs_pickup_location,
+        "has_snapshot": order.snapshot is not None,
         "total_amount": money(order.total_amount),
         "item_count": order.item_count,
         "receiver_name": order.receiver_name,
@@ -330,6 +345,13 @@ def order_actions(order, viewer_type: str, pending_comment: bool = True) -> list
         elif status == OrderStatus.SHIPPED:
             actions.append("confirm")
             actions.append("refund")
+        if (
+            viewer_type == "buyer"
+            and order.is_pickup
+            and not order.pickup_time
+            and status in (OrderStatus.UNPAID, OrderStatus.PAID, OrderStatus.SHIPPED)
+        ):
+            actions.append("set_pickup_time")
         elif status == OrderStatus.DONE and pending_comment:
             actions.append("comment")
         elif status == OrderStatus.REFUNDING:
@@ -430,5 +452,9 @@ def delivery_options() -> list[dict]:
     return [{"value": item, "label": item} for item in DeliveryType.ALL]
 
 
-def pay_options() -> list[dict]:
-    return [{"value": item, "label": item} for item in (PayMethod.BALANCE, PayMethod.OFFLINE)]
+def pay_options(delivery_type: str | None = None) -> list[dict]:
+    """支付方式：快递只提供余额，自提可用余额/线下。"""
+    from backend.constants import PAY_METHODS_BY_DELIVERY
+
+    methods = PAY_METHODS_BY_DELIVERY.get(delivery_type, (PayMethod.BALANCE, PayMethod.OFFLINE))
+    return [{"value": item, "label": item} for item in methods]

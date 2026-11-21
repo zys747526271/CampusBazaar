@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminApiClient } from '@/api'
-import { toastError } from '@/composables/useToast'
+import { toastError, toastSuccess } from '@/composables/useToast'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppImage from '@/components/ui/AppImage.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
@@ -62,6 +62,46 @@ const loadSellerProducts = async (next = 1) => {
     toastError(error.message)
   } finally {
     productsLoading.value = false
+  }
+}
+
+const manageOpen = ref(false)
+const manageTarget = ref(null)
+const manageBusy = ref(false)
+const manageForm = reactive({ status: '', reason: '', featured: false })
+
+const openManage = (product) => {
+  manageTarget.value = product
+  manageForm.status = product.status
+  manageForm.reason = ''
+  manageForm.featured = Boolean(product.is_featured)
+  manageOpen.value = true
+}
+
+const submitManage = async () => {
+  if (manageForm.status === '已下架' && manageForm.reason.trim().length < 2) {
+    toastError('下架需要填写原因')
+    return
+  }
+  manageBusy.value = true
+  try {
+    if (manageForm.status !== manageTarget.value.status) {
+      await adminApiClient.updateProductStatus(manageTarget.value.id, {
+        status: manageForm.status,
+        reason: manageForm.reason.trim()
+      })
+    }
+    if (manageForm.featured !== Boolean(manageTarget.value.is_featured)) {
+      await adminApiClient.featureProduct(manageTarget.value.id, manageForm.featured)
+    }
+    toastSuccess('已更新，前台立即生效')
+    manageOpen.value = false
+    loadSellerProducts(1)
+    load(page.value)
+  } catch (error) {
+    toastError(error.message)
+  } finally {
+    manageBusy.value = false
   }
 }
 
@@ -148,7 +188,7 @@ onMounted(() => load(1))
       </div>
       <AppEmpty v-else-if="!sellerProducts.length" icon="package" title="该商家暂无商品" compact />
       <table v-else class="table">
-        <thead><tr><th>商品</th><th>价格</th><th>库存</th><th>状态</th></tr></thead>
+        <thead><tr><th>商品</th><th>价格</th><th>库存</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="product in sellerProducts" :key="product.id">
             <td>
@@ -160,14 +200,45 @@ onMounted(() => load(1))
             <td>¥{{ money(product.price) }}</td>
             <td>{{ product.quantity }}</td>
             <td><StatusTag :status="product.status" kind="product" /></td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-sm" type="button" @click="openManage(product)">管理</button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
+    </AppModal>
+
+    <AppModal v-model="manageOpen" :title="`管理商品 · ${manageTarget?.name || ''}`" width="460px">
+      <div class="field">
+        <label>商品状态</label>
+        <select v-model="manageForm.status" class="select">
+          <option value="待审核">待审核</option>
+          <option value="已通过">已通过（上架）</option>
+          <option value="已下架">已下架</option>
+        </select>
+      </div>
+      <div class="field mt-12">
+        <label>操作原因（下架必填）</label>
+        <input v-model="manageForm.reason" class="input" maxlength="200" placeholder="例如：描述与实物不符 / 违禁物品" />
+      </div>
+      <label class="check mt-12">
+        <input v-model="manageForm.featured" type="checkbox" /> 设为首页推荐（运营加权）
+      </label>
+      <template #footer>
+        <button class="btn" type="button" @click="manageOpen = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="manageBusy" @click="submitManage">
+          {{ manageBusy ? '保存中…' : '保存' }}
+        </button>
+      </template>
     </AppModal>
   </div>
 </template>
 
 <style scoped>
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.check input { accent-color: var(--brand); }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .head h1 { font-size: 22px; }
 .search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 3px 10px; background: #fff; color: var(--muted); }

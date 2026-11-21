@@ -28,6 +28,7 @@ export const catalogApi = {
   tags: () => api.get('/tags'),
   shop: (id) => api.get(`/shops/${id}`),
   shopProducts: (id, params) => api.get(`/shops/${id}/products`, { params }),
+  shopComments: (id, params) => api.get(`/shops/${id}/comments`, { params }),
   suggest: (keyword) => api.get('/search/suggest', { params: { keyword } })
 }
 
@@ -53,6 +54,8 @@ export const orderApi = {
   cancel: (id, reason) => api.post(`/orders/${id}/cancel`, { reason }),
   confirm: (id) => api.post(`/orders/${id}/confirm`),
   refund: (id, reason) => api.post(`/orders/${id}/refund`, { reason }),
+  pickupTime: (id, pickup_time) => api.post(`/orders/${id}/pickup-time`, { pickup_time }),
+  snapshot: (id) => api.get(`/orders/${id}/snapshot`),
   cancelRefund: (id) => api.post(`/orders/${id}/cancel-refund`)
 }
 
@@ -116,6 +119,7 @@ export const sellerApi = {
   deleteProduct: (id) => api.del(`/seller/products/${id}`),
   orders: (params) => api.get('/seller/orders', { params }),
   ship: (id, payload) => api.post(`/seller/orders/${id}/ship`, payload),
+  setPickupLocation: (id, pickup_location) => api.post(`/seller/orders/${id}/pickup-location`, { pickup_location }),
   confirmPaid: (id) => api.post(`/seller/orders/${id}/confirm-paid`),
   closeOrder: (id, reason) => api.post(`/seller/orders/${id}/close`, { reason }),
   handleRefund: (id, payload) => api.post(`/seller/orders/${id}/refund`, payload),

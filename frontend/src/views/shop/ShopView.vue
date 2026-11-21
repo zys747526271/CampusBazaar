@@ -5,10 +5,11 @@ import { catalogApi } from '@/api'
 import ProductGrid from '@/components/product/ProductGrid.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 import AppRating from '@/components/ui/AppRating.vue'
+import AppImage from '@/components/ui/AppImage.vue'
 import AppEmpty from '@/components/ui/AppEmpty.vue'
 import SkeletonBlock from '@/components/ui/SkeletonBlock.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
-import { dateOnly } from '@/utils/format'
+import { dateOnly, dateTime } from '@/utils/format'
 
 const route = useRoute()
 const loading = ref(true)
@@ -21,13 +22,19 @@ const page = ref(1)
 const sort = ref('created_at')
 
 const stats = computed(() => shop.value?.stats || {})
+const reviews = ref([])
+const reviewSummary = ref({ average: 0, total: 0, distribution: {} })
+const reviewPage = ref(1)
+const reviewPages = ref(0)
+const reviewTotal = ref(0)
+const reviewLoading = ref(false)
 
 const load = async () => {
   loading.value = true
   notFound.value = false
   try {
     shop.value = await catalogApi.shop(route.params.id)
-    await loadProducts(1)
+    await Promise.all([loadProducts(1), loadReviews(1)])
   } catch (error) {
     notFound.value = true
   } finally {
@@ -41,6 +48,22 @@ const loadProducts = async (nextPage = page.value) => {
   total.value = data.total || 0
   pages.value = data.pages || 0
   page.value = data.page || 1
+}
+
+const loadReviews = async (nextPage = 1) => {
+  reviewLoading.value = true
+  try {
+    const data = await catalogApi.shopComments(route.params.id, { page: nextPage, per_page: 8 })
+    reviews.value = data.items || []
+    reviewSummary.value = data.summary || { average: 0, total: 0, distribution: {} }
+    reviewTotal.value = data.total || 0
+    reviewPages.value = data.pages || 0
+    reviewPage.value = data.page || 1
+  } catch (error) {
+    reviews.value = []
+  } finally {
+    reviewLoading.value = false
+  }
 }
 
 const changeSort = (value) => {
@@ -116,6 +139,51 @@ onMounted(load)
       </ProductGrid>
 
       <AppPagination :page="page" :pages="pages" :total="total" :per-page="12" @change="loadProducts" />
+
+      <section class="reviews">
+        <div class="reviews-head">
+          <h2>店铺评价</h2>
+          <div v-if="reviewSummary.total" class="review-score">
+            <strong>{{ reviewSummary.average }}</strong>
+            <AppRating :model-value="reviewSummary.average" :size="14" readonly />
+            <span class="text-sm text-muted">共 {{ reviewSummary.total }} 条 · 含已售出与已下架商品</span>
+          </div>
+          <span v-else class="text-sm text-muted">暂无评价，卖出商品后买家评价会展示在这里</span>
+        </div>
+
+        <div v-if="reviewLoading" class="review-skeleton">
+          <SkeletonBlock :h="72" />
+          <SkeletonBlock :h="72" />
+        </div>
+        <AppEmpty v-else-if="!reviews.length" icon="comment" title="还没有评价" compact />
+
+        <ul v-else class="review-list">
+          <li v-for="review in reviews" :key="review.id" class="review">
+            <div class="review-top">
+              <span class="avatar sm">{{ (review.user?.nickname || '同').slice(0, 1) }}</span>
+              <strong>{{ review.user?.nickname || '匿名同学' }}</strong>
+              <AppRating :model-value="review.rating" :size="12" readonly />
+              <span class="text-xs text-muted">{{ dateTime(review.created_at) }}</span>
+            </div>
+            <p class="review-text">{{ review.content || '（未填写文字评价）' }}</p>
+            <RouterLink v-if="review.product" :to="`/products/${review.product.id}`" class="review-product">
+              <AppImage :src="review.product.cover_image" :alt="review.product.name" radius="6px" class="rp-img" />
+              <span class="ellipsis">{{ review.product.name }}</span>
+              <span class="tag tag-line">{{ review.product.is_on_sale ? '在售' : '已结束' }}</span>
+            </RouterLink>
+            <p v-if="review.seller_reply" class="review-reply">卖家回复：{{ review.seller_reply }}</p>
+          </li>
+        </ul>
+
+        <AppPagination
+          v-if="reviewPages > 1"
+          :page="reviewPage"
+          :pages="reviewPages"
+          :total="reviewTotal"
+          :per-page="8"
+          @change="loadReviews"
+        />
+      </section>
     </template>
   </div>
 </template>
@@ -153,6 +221,22 @@ onMounted(load)
   color: var(--ink-2); font-size: 13px;
 }
 .sorts button.on { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+.reviews { margin-top: 28px; }
+.reviews-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.reviews-head h2 { font-size: 18px; }
+.review-score { display: flex; align-items: center; gap: 8px; }
+.review-score strong { font-size: 20px; color: var(--brand); }
+.review-skeleton { display: flex; flex-direction: column; gap: 10px; }
+.review-list { display: flex; flex-direction: column; gap: 10px; }
+.review { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.review-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.review-top .text-xs { margin-left: auto; }
+.avatar.sm { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; background: linear-gradient(135deg, #ffe2d3, #ffc3a6); color: #a03c0d; }
+.review-text { margin: 8px 0; font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
+.review-product { display: inline-flex; align-items: center; gap: 8px; background: #fafbfc; border-radius: 8px; padding: 6px 8px; font-size: 12.5px; color: var(--ink-2); max-width: 100%; }
+.rp-img { width: 28px; flex: none; }
+.review-reply { margin-top: 8px; font-size: 12.5px; color: var(--muted); background: #f7f8fa; border-radius: 6px; padding: 6px 10px; }
 
 @media (max-width: 760px) {
   .shop-card { flex-wrap: wrap; padding: 18px; gap: 12px; }

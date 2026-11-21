@@ -149,9 +149,13 @@ def main() -> int:
         cdp.eval(f"localStorage.setItem('cb_token', '{buyer_token}'); true", await_promise=False)
 
         pages = [
+            ("list", "/products", 1300),
+            ("detail", "/products/3", 1300),
+            ("shop", "/shops/1", 1500),
             ("cart", "/cart", 1000),
             ("checkout", "/checkout", 1100),
             ("orders", "/orders", 1000),
+            ("order-detail", "/orders/1", 1200),
             ("favorites", "/favorites", 900),
             ("profile", "/profile", 900),
             ("messages", "/messages", 900),

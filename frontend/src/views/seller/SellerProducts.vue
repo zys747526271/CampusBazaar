@@ -12,7 +12,7 @@ import AppEmpty from '@/components/ui/AppEmpty.vue'
 import SkeletonBlock from '@/components/ui/SkeletonBlock.vue'
 import StatusTag from '@/components/ui/StatusTag.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
-import { dateOnly, money } from '@/utils/format'
+import { dateOnly, deliveryLabels, money } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -135,6 +135,8 @@ onMounted(() => load(1))
             <th>商品</th>
             <th>价格</th>
             <th>库存 / 已售</th>
+            <th>履约</th>
+            <th>履约</th>
             <th>浏览</th>
             <th>评价</th>
             <th>状态</th>
@@ -156,6 +158,18 @@ onMounted(() => load(1))
             <td>
               <span :class="{ 'text-danger': product.quantity <= 0 }">{{ product.quantity }}</span>
               <span class="text-muted"> / {{ product.sales }}</span>
+            </td>
+            <td>
+              <div class="deliver-tags">
+                <span v-for="label in deliveryLabels(product)" :key="label" class="tag tag-line">{{ label }}</span>
+                <span v-if="product.supports_express && !product.free_shipping" class="tag tag-line">运费 ¥{{ money(product.shipping_fee) }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="deliver-tags">
+                <span v-for="label in deliveryLabels(product)" :key="label" class="tag tag-line">{{ label }}</span>
+                <span v-if="product.supports_express && !product.free_shipping" class="tag tag-line">运费 ¥{{ money(product.shipping_fee) }}</span>
+              </div>
             </td>
             <td class="text-muted">{{ product.views }}</td>
             <td class="text-muted">{{ product.comment_count }}</td>
@@ -185,6 +199,8 @@ onMounted(() => load(1))
 </template>
 
 <style scoped>
+.deliver-tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 150px; }
+.deliver-tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 150px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 .search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 3px 4px 3px 10px; color: var(--muted); }
 .search input { border: none; outline: none; height: 28px; width: 160px; font-size: 13px; }

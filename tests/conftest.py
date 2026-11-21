@@ -78,20 +78,29 @@ def headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def place_order(client, token: str, product_id: int = 1, quantity: int = 1, pay_method: str = "线下"):
-    return client.post(
-        "/api/orders",
-        json={
-            "source": "now",
-            "items": [{"product_id": product_id, "quantity": quantity}],
-            "pay_method": pay_method,
-            "delivery_type": "面交",
-            "receiver_name": "买家一号",
-            "receiver_phone": "13800000001",
-            "address_text": "图书馆",
-        },
-        headers=headers(token),
-    )
+def place_order(
+    client,
+    token: str,
+    product_id: int = 1,
+    quantity: int = 1,
+    pay_method: str = "线下",
+    delivery_type: str = "自提",
+    pickup_time: str = "2030-01-01T12:00",
+    address_id: int | None = None,
+):
+    payload = {
+        "source": "now",
+        "items": [{"product_id": product_id, "quantity": quantity}],
+        "pay_method": pay_method,
+        "delivery_type": delivery_type,
+    }
+    if delivery_type == "自提":
+        payload.update({"receiver_name": "买家一号", "receiver_phone": "13800000001", "address_text": "图书馆"})
+        if pickup_time:
+            payload["pickup_time"] = pickup_time
+    if address_id:
+        payload["address_id"] = address_id
+    return client.post("/api/orders", json=payload, headers=headers(token))
 
 
 @pytest.fixture()

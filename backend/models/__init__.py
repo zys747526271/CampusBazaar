@@ -11,7 +11,7 @@ from backend.models.engagement import (
     Message,
     Report,
 )
-from backend.models.orders import Cart, Order, OrderItem, OrderStatusLog
+from backend.models.orders import Cart, Order, OrderItem, OrderSnapshot, OrderStatusLog
 from backend.models.products import Product
 from backend.models.users import Admin, User
 
@@ -30,6 +30,7 @@ __all__ = [
     "Message",
     "Order",
     "OrderItem",
+    "OrderSnapshot",
     "OrderStatusLog",
     "Product",
     "Report",

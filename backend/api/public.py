@@ -15,10 +15,11 @@ from backend.services.serializers import (
     pay_options,
     product_card,
     product_detail,
+    rating_summary,
     tag_view,
     user_public,
 )
-from backend.utils.response import ok, page_args, page_result
+from backend.utils.response import ok, page_args, page_result, paginate
 from backend.utils.security import optional_user
 from backend.utils.validators import normalize_keyword
 
@@ -198,6 +199,46 @@ def shop_detail(seller_id: int):
         }
     )
     return ok(data)
+
+
+@bp.get("/shops/<int:seller_id>/comments")
+def shop_comments(seller_id: int):
+    """店铺历史评价：商品卖出/下架也保留，供后续买家判断店铺信誉。"""
+    seller = User.query.filter(User.id == seller_id, User.is_deleted.is_(False)).first()
+    if seller is None or not seller.is_seller:
+        raise not_found("店铺不存在")
+
+    viewer = optional_user()
+    query = (
+        Comment.query.join(Product, Product.id == Comment.product_id)
+        .filter(
+            Product.seller_id == seller_id,
+            Comment.is_deleted.is_(False),
+            Comment.is_hidden.is_(False),
+        )
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+    )
+
+    rows = db.session.execute(
+        select(Comment.rating, func.count(Comment.id))
+        .join(Product, Product.id == Comment.product_id)
+        .where(
+            Product.seller_id == seller_id,
+            Comment.is_deleted.is_(False),
+            Comment.is_hidden.is_(False),
+        )
+        .group_by(Comment.rating)
+    ).all()
+    summary = rating_summary([(row[0], int(row[1])) for row in rows], sum(int(row[1]) for row in rows))
+
+    ids = [c.id for c in query.limit(50).all()]
+    liked = _liked_ids(ids, viewer)
+    result = paginate(
+        query,
+        lambda c: comment_view(c, viewer, liked=c.id in liked, with_product=True),
+        default_per_page=10,
+    )
+    return ok({"summary": summary, **result})
 
 
 @bp.get("/shops/<int:seller_id>/products")

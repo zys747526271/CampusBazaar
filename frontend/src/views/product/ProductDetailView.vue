@@ -14,7 +14,7 @@ import AppPagination from '@/components/ui/AppPagination.vue'
 import ProductGrid from '@/components/product/ProductGrid.vue'
 import SkeletonBlock from '@/components/ui/SkeletonBlock.vue'
 import StatusTag from '@/components/ui/StatusTag.vue'
-import { REPORT_REASONS, dateTime, money, relativeTime } from '@/utils/format'
+import { REPORT_REASONS, dateTime, deliveryLabels, money, relativeTime } from '@/utils/format'
 import { toastError, toastSuccess } from '@/composables/useToast'
 
 const route = useRoute()
@@ -255,6 +255,7 @@ onMounted(loadProduct)
 
           <div class="meta-row">
             <span class="tag tag-line">{{ product.condition }}</span>
+            <span v-for="label in deliveryLabels(product)" :key="label" class="tag tag-line">{{ label }}</span>
             <span v-if="product.location" class="meta-item"><AppIcon name="map-pin" :size="13" /> {{ product.location }}</span>
             <span class="meta-item"><AppIcon name="eye" :size="13" /> {{ product.views }} 次浏览</span>
             <span class="meta-item">已售 {{ product.sales }}</span>
@@ -267,7 +268,8 @@ onMounted(loadProduct)
               <span v-if="product.discount" class="tag tag-brand">{{ product.discount.toFixed(1) }} 折</span>
             </div>
             <div class="price-tip">
-              <AppIcon name="shield" :size="14" /> 校内面交 · 当面验货 · 确认收货后货款才结算给卖家
+              <AppIcon name="shield" :size="14" />
+              {{ product.supports_pickup ? '校内自提 · 当面验货' : '快递发货 · 验货后再确认收货' }} · 确认收货后货款才结算给卖家
             </div>
           </div>
 
@@ -303,6 +305,26 @@ onMounted(loadProduct)
             </button>
           </div>
 
+          <div class="delivery-box">
+            <div class="d-row">
+              <span class="d-label">自提</span>
+              <template v-if="product.supports_pickup">
+                <span>{{ product.pickup_location || '卖家下单后补充自提点' }}</span>
+                <span class="d-note">当面验货，可约定自提时间</span>
+              </template>
+              <span v-else class="text-muted">该商品不支持自提</span>
+            </div>
+            <div class="d-row">
+              <span class="d-label">快递</span>
+              <template v-if="product.supports_express">
+                <span v-if="product.free_shipping" class="d-free">包邮</span>
+                <span v-else class="d-fee">运费 ¥{{ money(product.shipping_fee) }}</span>
+                <span class="d-note">下单时自动计入总价，仅支持在线支付</span>
+              </template>
+              <span v-else class="text-muted">该商品不支持快递</span>
+            </div>
+          </div>
+
           <div class="seller-card">
             <RouterLink :to="`/shops/${seller.id}`" class="seller-main">
               <span class="avatar">
@@ -323,7 +345,7 @@ onMounted(loadProduct)
           </div>
 
           <div class="promise">
-            <span><AppIcon name="check-circle" :size="14" /> 同校面交</span>
+            <span><AppIcon name="check-circle" :size="14" /> 同校自提</span>
             <span><AppIcon name="check-circle" :size="14" /> 当面验货</span>
             <span><AppIcon name="check-circle" :size="14" /> 订单留痕</span>
             <button class="report-link" type="button" @click="reportOpen = true">
@@ -426,15 +448,6 @@ onMounted(loadProduct)
       <button class="btn btn-primary" type="button" :disabled="busy" @click="buyNow">立即购买</button>
     </div>
 
-    <div v-if="product && !product.is_owner && canBuy" class="mobile-buy">
-      <div class="mb-price">
-        <span class="price price-md"><span class="unit">¥</span>{{ money(product.price) }}</span>
-        <span class="text-xs text-muted">库存 {{ product.quantity }}</span>
-      </div>
-      <button class="btn" type="button" :disabled="busy" @click="addToCart">加入购物车</button>
-      <button class="btn btn-primary" type="button" :disabled="busy" @click="buyNow">立即购买</button>
-    </div>
-
     <AppModal v-model="reportOpen" title="举报商品" width="440px">
       <div class="field mb-12">
         <label>举报原因</label>
@@ -519,6 +532,12 @@ onMounted(loadProduct)
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .actions .grow { flex: 1; min-width: 140px; }
 
+.delivery-box { border: 1px solid var(--line); border-radius: 10px; background: #fafbfc; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.d-row { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
+.d-label { color: var(--muted); width: 36px; flex: none; }
+.d-note { color: var(--muted); font-size: 12px; }
+.d-free { color: #0f7b57; background: #e7f7f0; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+.d-fee { color: #b54708; background: #fff4e5; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .seller-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; }
 .seller-main { display: flex; align-items: center; gap: 10px; }
 .avatar {

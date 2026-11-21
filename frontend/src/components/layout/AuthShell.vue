@@ -24,7 +24,7 @@ const highlights = [
         </div>
       </div>
       <h2>让闲置<br />找到下一个主人</h2>
-      <p class="aside-desc">教材、数码、宿舍好物，同校面交，价格实在，交易有保障。</p>
+      <p class="aside-desc">教材、数码、宿舍好物，同校自提，价格实在，交易有保障。</p>
 
       <ul class="highlights">
         <li v-for="item in highlights" :key="item.title">

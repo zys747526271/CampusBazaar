@@ -31,6 +31,11 @@ const shipTarget = ref(null)
 const shipForm = reactive({ ship_company: '', tracking_no: '', note: '' })
 const shipBusy = ref(false)
 
+const pickupOpen = ref(false)
+const pickupTarget = ref(null)
+const pickupLocation = ref('')
+const pickupBusy = ref(false)
+
 const refundOpen = ref(false)
 const refundTarget = ref(null)
 const refundForm = reactive({ approve: true, note: '' })
@@ -66,6 +71,30 @@ const changeTab = (value) => {
   status.value = value
   router.replace({ path: '/seller/orders', query: value ? { status: value } : {} })
   load(1)
+}
+
+const openPickup = (order) => {
+  pickupTarget.value = order
+  pickupLocation.value = order.pickup_location || ''
+  pickupOpen.value = true
+}
+
+const submitPickup = async () => {
+  if (pickupLocation.value.trim().length < 2) {
+    toastError('请填写具体自提点')
+    return
+  }
+  pickupBusy.value = true
+  try {
+    await sellerApi.setPickupLocation(pickupTarget.value.id, pickupLocation.value.trim())
+    toastSuccess('自提点已保存，买家会收到通知')
+    pickupOpen.value = false
+    load(page.value)
+  } catch (error) {
+    toastError(error.message)
+  } finally {
+    pickupBusy.value = false
+  }
 }
 
 const openShip = (order) => {
@@ -196,7 +225,12 @@ onMounted(() => load(1))
                 <div class="o-info">
                   <p class="o-no">{{ order.order_no }}</p>
                   <p class="o-name clamp-2">{{ order.items?.[0]?.name }}<span v-if="order.items?.length > 1"> 等 {{ order.items.length }} 件</span></p>
-                  <p class="text-xs text-muted">{{ order.delivery_type }} · {{ order.pay_method }}</p>
+                  <p class="text-xs text-muted">
+                    {{ order.delivery_type }} · {{ order.pay_method }}
+                    <template v-if="order.is_pickup"> · 自提点：{{ order.pickup_location || '待补充' }}</template>
+                    <template v-if="order.is_pickup && order.pickup_time"> · {{ dateTime(order.pickup_time) }}</template>
+                  </p>
+                  <p v-if="order.needs_pickup_location" class="text-xs text-danger mt-4">买家在等自提点</p>
                 </div>
               </div>
             </td>
@@ -222,13 +256,21 @@ onMounted(() => load(1))
                   确认收款
                 </button>
                 <button
+                  v-if="order.needs_pickup_location && (order.status === '待付款' || order.status === '已付款')"
+                  class="btn btn-sm btn-primary"
+                  type="button"
+                  @click="openPickup(order)"
+                >
+                  填自提点
+                </button>
+                <button
                   v-if="order.status === '已付款'"
                   class="btn btn-sm btn-primary"
                   type="button"
                   :disabled="busyId === order.id"
                   @click="openShip(order)"
                 >
-                  发货
+                  {{ order.is_pickup ? '备货完成' : '发货' }}
                 </button>
                 <button
                   v-if="order.status === '退款中'"
@@ -281,13 +323,31 @@ onMounted(() => load(1))
         </div>
       </template>
       <div class="field mt-12">
-        <label>发货备注 / 自提点</label>
-        <input v-model="shipForm.note" class="input" maxlength="100" placeholder="例如：图书馆一楼，晚上 7 点后" />
+        <label>{{ needTracking ? '发货备注' : '取货说明' }}</label>
+        <input v-model="shipForm.note" class="input" maxlength="100" :placeholder="needTracking ? '例如：今天下午发出' : '例如：已备好，随时可来取'" />
       </div>
       <template #footer>
         <button class="btn" type="button" @click="shipOpen = false">取消</button>
         <button class="btn btn-primary" type="button" :disabled="shipBusy" @click="submitShip">
           {{ shipBusy ? '提交中…' : '确认发货' }}
+        </button>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="pickupOpen" title="填写自提点" width="440px">
+      <div v-if="pickupTarget" class="ship-info">
+        <p class="text-sm"><strong>{{ pickupTarget.order_no }}</strong> · 买家 {{ pickupTarget.buyer?.nickname }}</p>
+        <p class="text-sm text-muted">买家下单时商品未填自提点，补充后系统会推送站内消息给买家。</p>
+      </div>
+      <div class="field mt-12">
+        <label>自提点</label>
+        <input v-model="pickupLocation" class="input" maxlength="120" placeholder="例如：图书馆一楼大厅 / 3 号宿舍楼下" />
+        <span class="field-hint">写清楼栋与碰面位置，减少来回沟通</span>
+      </div>
+      <template #footer>
+        <button class="btn" type="button" @click="pickupOpen = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="pickupBusy" @click="submitPickup">
+          {{ pickupBusy ? '保存中…' : '保存并通知买家' }}
         </button>
       </template>
     </AppModal>

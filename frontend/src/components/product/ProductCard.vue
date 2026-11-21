@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppImage from '@/components/ui/AppImage.vue'
 import AppRating from '@/components/ui/AppRating.vue'
-import { money, relativeTime } from '@/utils/format'
+import { deliveryLabels, money, relativeTime } from '@/utils/format'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -54,6 +54,14 @@ const onFavorite = (event) => {
 
     <div class="body">
       <h3 class="title clamp-2">{{ product.name }}</h3>
+      <div class="delivery-row">
+        <span v-for="label in deliveryLabels(product)" :key="label" class="deliver-tag" :class="label === '包邮' ? 'free' : ''">
+          {{ label }}
+        </span>
+        <span v-if="product.supports_express && !product.free_shipping" class="deliver-tag fee">
+          运费 ¥{{ money(product.shipping_fee) }}
+        </span>
+      </div>
       <div class="meta">
         <span class="tag tag-line">{{ product.condition }}</span>
         <span class="text-xs text-muted">{{ relativeTime(product.created_at) }}</span>
@@ -120,6 +128,13 @@ const onFavorite = (event) => {
 
 .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .title { font-size: 14px; font-weight: 500; line-height: 1.5; min-height: 42px; color: var(--ink); }
+.delivery-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.deliver-tag {
+  font-size: 11px; line-height: 1; padding: 4px 6px; border-radius: 4px;
+  color: #475467; background: #f2f4f7;
+}
+.deliver-tag.free { color: #0f7b57; background: #e7f7f0; }
+.deliver-tag.fee { color: #b54708; background: #fff4e5; }
 .meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .price-row { display: flex; align-items: baseline; gap: 8px; margin-top: auto; }
 .origin { color: var(--muted-2); font-size: 12px; text-decoration: line-through; }

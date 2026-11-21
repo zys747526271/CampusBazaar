@@ -43,11 +43,25 @@ class PayMethod:
 
 
 class DeliveryType:
+    """履约方式：自提（含当面交易）与快递；「面交」已并入自提（v2.2）。"""
+
     PICKUP = "自提"
-    MEETUP = "面交"
     EXPRESS = "快递"
 
-    ALL = (PICKUP, MEETUP, EXPRESS)
+    ALL = (PICKUP, EXPRESS)
+    #: 历史数据里出现过的旧值，仅用于兼容读取
+    LEGACY = ("面交",)
+
+    @classmethod
+    def normalize(cls, value: str) -> str:
+        return cls.PICKUP if value in cls.LEGACY else value
+
+
+#: 履约方式 → 可用支付方式（快递不走线下，避免"货到付款"歧义）
+PAY_METHODS_BY_DELIVERY = {
+    DeliveryType.PICKUP: (PayMethod.BALANCE, PayMethod.OFFLINE),
+    DeliveryType.EXPRESS: (PayMethod.BALANCE,),
+}
 
 
 class ProductCondition:

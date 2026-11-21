@@ -27,6 +27,18 @@ class Product(db.Model, TimestampMixin, SoftDeleteMixin):
     product_condition = db.Column(db.String(10), default=ProductCondition.LIKE_NEW, nullable=False)
     location = db.Column(db.String(60), default="", nullable=False)
 
+    # ---- 履约信息（v2.2）----
+    #: 是否支持自提（自提即当面交易，不再单列"面交"）
+    supports_pickup = db.Column(db.Boolean, default=True, nullable=False)
+    #: 卖家填写的自提点；允许为空，买家下单后由卖家补录并推送
+    pickup_location = db.Column(db.String(120), default="", nullable=False)
+    #: 是否支持快递
+    supports_express = db.Column(db.Boolean, default=True, nullable=False)
+    #: 快递是否包邮；不包邮时 shipping_fee 必填且 > 0
+    free_shipping = db.Column(db.Boolean, default=True, nullable=False)
+    shipping_fee = db.Column(db.Numeric(10, 2), default=Decimal("0.00"), nullable=False)
+
+
     tag_id = db.Column(db.Integer, db.ForeignKey("tags.id"), nullable=True, index=True)
     seller_category_id = db.Column(db.Integer, db.ForeignKey("seller_categories.id"), nullable=True)
     seller_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
@@ -75,6 +87,22 @@ class Product(db.Model, TimestampMixin, SoftDeleteMixin):
         if not self.is_available or self.quantity <= 0:
             return "已售罄"
         return "在售"
+
+    @property
+    def shipping_amount(self) -> Decimal:
+        """买家应付运费：包邮或非快递场景为 0。"""
+        if bool(self.free_shipping):
+            return Decimal("0.00")
+        return Decimal(self.shipping_fee or 0).quantize(Decimal("0.01"))
+
+    @property
+    def delivery_labels(self) -> list[str]:
+        labels: list[str] = []
+        if self.supports_pickup:
+            labels.append("自提")
+        if self.supports_express:
+            labels.append("包邮" if self.free_shipping else "快递")
+        return labels
 
     @property
     def discount(self) -> float:

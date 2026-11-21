@@ -87,10 +87,26 @@ PRODUCTS = [
      "专柜赠品，全新未拆封，喷头正常。适合先试香再入正装。", 2),
 ]
 
+#: 演示用履约配置：覆盖「仅自提」「仅快递」「包邮」「到付运费」四种展示
+DELIVERY_MAP = {
+    "高等数学 同济第七版 上下册": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "考研英语一 真题解析（2010-2024）": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "iPad Air 4 64G 深空灰": {"pickup": True, "express": True, "free": False, "fee": 12},
+    "罗技 MX Master 3 无线鼠标": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "Kindle Paperwhite 4 8G 防水版": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "宿舍小冰箱 桌面 20L": {"pickup": True, "express": False, "free": True, "fee": 0},
+    "北欧风桌面收纳架 三层": {"pickup": True, "express": False, "free": True, "fee": 0},
+    "耐克 Air Zoom 跑鞋 42 码": {"pickup": True, "express": True, "free": False, "fee": 10},
+    "尤尼克斯羽毛球拍 双拍套装": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "雅马哈 F310 民谣吉他 41 寸": {"pickup": True, "express": False, "free": True, "fee": 0},
+    "大学物理 教材 + 习题册（两本）": {"pickup": True, "express": True, "free": True, "fee": 0},
+    "香奈儿 5 号淡香 小样 5ml": {"pickup": False, "express": True, "free": False, "fee": 8},
+}
+
 BANNERS = [
     ("毕业季 · 闲置好物大清仓", "教材 / 数码 / 宿舍神器，低至 3 折", "#ff5000", "#ff8a3d", "/products?sort=sales"),
     ("考研资料专区", "真题、笔记、参考书，学长学姐亲测", "#2b5cff", "#5b8cff", "/products?tag_id=1"),
-    ("校内面交 · 当面验货", "同校交易，见面自提，省心又安全", "#0f9d76", "#3ec49b", "/products?sort=created_at"),
+    ("校内自提 · 当面验货", "同校交易，见面自提，省心又安全", "#0f9d76", "#3ec49b", "/products?sort=created_at"),
 ]
 
 
@@ -180,7 +196,7 @@ def _ensure_banner_image(index: int, title: str, c1: str, c2: str) -> str:
 <text x="600" y="206" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif"
  font-size="46" font-weight="700" fill="#ffffff">{title[:18]}</text>
 <text x="600" y="256" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif"
- font-size="21" fill="#ffffff" opacity="0.86">校内面交 · 当面验货 · 交易留痕</text>
+ font-size="21" fill="#ffffff" opacity="0.86">校内自提 · 当面验货 · 交易留痕</text>
 <rect x="512" y="292" width="176" height="48" rx="24" fill="#ffffff" opacity="0.94"/>
 <text x="600" y="324" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif"
  font-size="19" font-weight="600" fill="{c1}">立即逛逛</text>
@@ -291,6 +307,7 @@ def seed_demo_data() -> dict:
         if product is not None:
             product_map[name] = product
             continue
+        delivery = DELIVERY_MAP[name]
         product = Product(
             name=name,
             description=desc,
@@ -302,6 +319,11 @@ def seed_demo_data() -> dict:
             images=_ensure_product_images(index, name, img_count),
             product_condition=condition,
             location=location,
+            supports_pickup=delivery["pickup"],
+            pickup_location=location if delivery["pickup"] else "",
+            supports_express=delivery["express"],
+            free_shipping=delivery["free"],
+            shipping_fee=Decimal("0.00") if delivery["free"] else Decimal(str(delivery["fee"])),
             tag_id=tag_map[tag_name].id,
             seller_id=seller.id,
             status=ProductStatus.APPROVED,
@@ -363,20 +385,20 @@ def _write_accounts_file() -> Path:
 
 def _seed_demo_orders(buyers, product_map: dict[str, Product], stats: dict) -> None:
     """造几笔真实感的订单与评价，让首页/后台/卖家看板都有数据可看。"""
-    #: (订单号, 买家, 商品, 状态, 支付方式, 评分, 评价, 卖家回复, 距今天数)
+    #: (订单号, 买家, 商品, 状态, 支付方式, 评分, 评价, 卖家回复, 距今天数, 履约方式)
     demo_orders = [
         ("CB20260101000001", buyers[0], "高等数学 同济第七版 上下册", OrderStatus.DONE, PayMethod.BALANCE, 5,
-         "书很干净，学长还送了笔记！面交也很准时。", True, 5),
+         "书很干净，学长还送了笔记！自提也很准时。", True, 5, DeliveryType.PICKUP),
         ("CB20260101000002", buyers[1], "考研英语一 真题解析（2010-2024）", OrderStatus.DONE, PayMethod.OFFLINE, 4,
-         "资料挺全的，就是有几页有折角，整体可以接受。", True, 3),
+         "资料挺全的，就是有几页有折角，整体可以接受。", True, 3, DeliveryType.PICKUP),
         ("CB20260101000003", buyers[0], "宿舍小冰箱 桌面 20L", OrderStatus.DONE, PayMethod.BALANCE, 5,
-         "冰箱制冷很好，学姐还帮忙搬下楼，太感谢了。", False, 1),
-        ("CB20260101000004", buyers[1], "耐克 Air Zoom 跑鞋 42 码", OrderStatus.SHIPPED, PayMethod.BALANCE, 0, "", False, 1),
-        ("CB20260101000005", buyers[0], "雅马哈 F310 民谣吉他 41 寸", OrderStatus.PAID, PayMethod.BALANCE, 0, "", False, 0),
-        ("CB20260101000006", buyers[1], "大学物理 教材 + 习题册（两本）", OrderStatus.UNPAID, PayMethod.OFFLINE, 0, "", False, 0),
+         "冰箱制冷很好，学姐还帮忙搬下楼，太感谢了。", False, 1, DeliveryType.PICKUP),
+        ("CB20260101000004", buyers[1], "耐克 Air Zoom 跑鞋 42 码", OrderStatus.SHIPPED, PayMethod.BALANCE, 0, "", False, 1, DeliveryType.EXPRESS),
+        ("CB20260101000005", buyers[0], "雅马哈 F310 民谣吉他 41 寸", OrderStatus.PAID, PayMethod.BALANCE, 0, "", False, 0, DeliveryType.PICKUP),
+        ("CB20260101000006", buyers[1], "大学物理 教材 + 习题册（两本）", OrderStatus.UNPAID, PayMethod.OFFLINE, 0, "", False, 0, DeliveryType.PICKUP),
     ]
 
-    for order_no, buyer, product_name, status, pay_method, rating, comment_text, reply, days_ago in demo_orders:
+    for order_no, buyer, product_name, status, pay_method, rating, comment_text, reply, days_ago, delivery_type in demo_orders:
         if Order.query.filter_by(order_no=order_no).first():
             continue
         product = product_map.get(product_name)
@@ -384,6 +406,7 @@ def _seed_demo_orders(buyers, product_map: dict[str, Product], stats: dict) -> N
             continue
 
         created = utcnow() - timedelta(days=days_ago, hours=2)
+        shipping_fee = product.shipping_amount if delivery_type == DeliveryType.EXPRESS else Decimal("0.00")
         order = Order(
             order_no=order_no,
             created_at=created,
@@ -392,13 +415,17 @@ def _seed_demo_orders(buyers, product_map: dict[str, Product], stats: dict) -> N
             seller_id=product.seller_id,
             status=status,
             pay_method=pay_method,
-            delivery_type=DeliveryType.MEETUP if status == OrderStatus.DONE else DeliveryType.PICKUP,
+            delivery_type=delivery_type,
             items_total=product.price,
-            shipping_fee=Decimal("0.00"),
-            total_amount=product.price,
+            shipping_fee=shipping_fee,
+            total_amount=product.price + shipping_fee,
             receiver_name=buyer.nickname,
             receiver_phone=buyer.phone,
-            address_text=product.location or "校内面交",
+            address_text=product.location or "校内自提",
+            pickup_location=product.pickup_location if delivery_type == DeliveryType.PICKUP else "",
+            pickup_time=created + timedelta(days=1, hours=3) if delivery_type == DeliveryType.PICKUP else None,
+            pickup_time_confirmed_at=created + timedelta(hours=6) if delivery_type == DeliveryType.PICKUP else None,
+            pickup_location_set_at=created if delivery_type == DeliveryType.PICKUP else None,
             remark="",
             pay_deadline=utcnow() + timedelta(minutes=25),
         )

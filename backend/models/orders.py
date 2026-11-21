@@ -46,6 +46,15 @@ class Order(db.Model, TimestampMixin):
     address_text = db.Column(db.String(255), default="", nullable=False)
     remark = db.Column(db.String(200), default="", nullable=False)
 
+    # ---- 自提信息（v2.2）----
+    #: 下单时从商品带过来的自提点；卖家可补录
+    pickup_location = db.Column(db.String(120), default="", nullable=False)
+    #: 买卖双方约定的自提时间，确认收货前必填
+    pickup_time = db.Column(db.DateTime(timezone=True), nullable=True)
+    pickup_time_confirmed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    pickup_location_set_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+
     pay_deadline = db.Column(db.DateTime(timezone=True), nullable=True)
     paid_at = db.Column(db.DateTime(timezone=True), nullable=True)
     shipped_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -73,6 +82,9 @@ class Order(db.Model, TimestampMixin):
     )
     buyer = db.relationship("User", foreign_keys=[user_id], lazy="selectin")
     seller = db.relationship("User", foreign_keys=[seller_id], lazy="selectin")
+    snapshot = db.relationship(
+        "OrderSnapshot", back_populates="order", uselist=False, lazy="selectin", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         db.Index("idx_order_user_status", "user_id", "status"),
@@ -83,6 +95,15 @@ class Order(db.Model, TimestampMixin):
     @property
     def item_count(self) -> int:
         return sum(item.quantity for item in self.items)
+
+    @property
+    def is_pickup(self) -> bool:
+        return self.delivery_type == DeliveryType.PICKUP
+
+    @property
+    def needs_pickup_location(self) -> bool:
+        """自提点为空时，需要卖家下单后补录并推送买家。"""
+        return self.is_pickup and not (self.pickup_location or "").strip()
 
     @property
     def is_expired(self) -> bool:
@@ -132,3 +153,21 @@ class OrderStatusLog(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
     order = db.relationship("Order", back_populates="logs")
+
+
+class OrderSnapshot(db.Model):
+    """交易快照：下单瞬间固化商品介绍页与详情页内容，供纠纷取证。
+
+    ``html_path`` 指向自包含 HTML（图片已内联为 data URI），
+    ``data`` 保留结构化字段，便于接口二次展示与后续检索。
+    """
+
+    __tablename__ = "order_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False, unique=True, index=True)
+    html_path = db.Column(db.String(255), default="", nullable=False)
+    data = db.Column(db.JSON, default=dict, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
+
+    order = db.relationship("Order", back_populates="snapshot")

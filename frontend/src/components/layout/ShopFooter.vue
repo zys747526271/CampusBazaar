@@ -43,7 +43,7 @@ const columns = [
         </div>
         <p class="desc">
           面向单一高校的校内 C2C 二手交易平台。教材、数码、宿舍好物，
-          同校面交、当面验货，交易全程留痕。
+          同校自提、当面验货，交易全程留痕。
         </p>
         <div class="badges">
           <span class="tag tag-line"><AppIcon name="shield" :size="12" /> 校内实名</span>

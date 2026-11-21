@@ -193,7 +193,7 @@ def main() -> int:
 
     preview = requests.post(
         f"{API}/orders/preview",
-        json={"source": "cart", "pay_method": "线下", "delivery_type": "面交"},
+        json={"source": "cart", "pay_method": "线下", "delivery_type": "自提"},
         headers=auth(buyer_token),
         timeout=10,
     )
@@ -204,16 +204,25 @@ def main() -> int:
     order_payload = {
         "source": "cart",
         "pay_method": "线下",
-        "delivery_type": "面交",
+        "delivery_type": "自提",
         "receiver_name": "赵一鸣",
         "receiver_phone": buyer_phone,
         "address_text": "图书馆一楼",
+        "pickup_time": "2030-01-01T12:00",
         "remark": "冒烟测试",
     }
     order_resp = requests.post(f"{API}/orders", json=order_payload, headers={**auth(buyer_token), **idem}, timeout=10)
     check("创建订单 -> 201", order_resp.status_code == 201, order_resp.text[:200])
     order = order_resp.json()["data"]["orders"][0]
     order_id = order["id"]
+    snapshot_resp = requests.get(f"{API}/orders/{order_id}/snapshot", headers=auth(buyer_token), timeout=10)
+    snapshot_data = snapshot_resp.json().get("data", {}) if snapshot_resp.status_code == 200 else {}
+    check(
+        "下单即生成交易快照",
+        snapshot_resp.status_code == 200 and str(snapshot_data.get("html_url", "")).endswith(".html"),
+        str(snapshot_data.get("html_url", ""))[:60],
+    )
+
     check(
         "订单号符合 CB+yyyyMMdd+6位格式",
         bool(re.fullmatch(r"CB\d{14}", order["order_no"])),
@@ -248,7 +257,7 @@ def main() -> int:
     check("卖家确认线下收款", paid.status_code == 200, paid.text[:160])
     ship = requests.post(
         f"{API}/seller/orders/{order_id}/ship",
-        json={"note": "图书馆门口面交"},
+        json={"note": "图书馆门口自提"},
         headers=auth(seller_token),
         timeout=10,
     )

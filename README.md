@@ -111,10 +111,10 @@ python -m backend.dev --serve-dist     # 直接访问 http://127.0.0.1:5000
 ## 4. 测试与质量门禁
 
 ```bash
-# 单元 + 接口测试（内存 SQLite，31 个用例）
+# 单元 + 接口测试（内存 SQLite，39 个用例）
 CAMPUS_CONFIG=testing pytest
 
-# 端到端冒烟（真实 HTTP，52 项断言，含 AC-01~AC-14）
+# 端到端冒烟（真实 HTTP，53 项断言，含 AC-01~AC-14）
 python scripts/smoke_test.py
 
 # 全接口覆盖巡检（80 个请求，捕捉 500 与异常状态码）

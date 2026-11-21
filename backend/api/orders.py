@@ -6,14 +6,16 @@ from decimal import Decimal
 from flask import Blueprint, request
 from sqlalchemy import func
 
-from backend.constants import DeliveryType, OrderStatus, PayMethod
+from backend.constants import PAY_METHODS_BY_DELIVERY, DeliveryType, OrderStatus, PayMethod
 from backend.errors import bad_request, forbidden, not_found
 from backend.extensions import db
 from backend.models import Address, Cart, Comment, Order
 from backend.services import orders as order_service
+from backend.services import snapshots as snapshot_service
 from backend.services.serializers import order_view
 from backend.utils.idempotency import idempotent
 from backend.utils.limiter import by_user
+from backend.utils.common import parse_local_datetime
 from backend.utils.response import created, ok, paginate
 from backend.utils.security import current_user, login_required
 from backend.utils.validators import Payload
@@ -42,7 +44,8 @@ def _resolve_items(user, payload: Payload) -> list[dict]:
     return [{"product_id": row.product_id, "quantity": row.quantity, "cart_id": row.id} for row in rows]
 
 
-def _resolve_receiver(user, payload: Payload) -> tuple[str, str, str]:
+def _resolve_receiver(user, payload: Payload, delivery_type: str) -> tuple[str, str, str]:
+    """收货信息：快递只能用地址簿；自提可手填联系人（默认取账号信息）。"""
     address_id = payload.integer("address_id", required=False, min_value=1, default=0)
     if address_id:
         address = Address.query.filter(Address.id == address_id, Address.user_id == user.id, Address.is_deleted.is_(False)).first()
@@ -50,8 +53,8 @@ def _resolve_receiver(user, payload: Payload) -> tuple[str, str, str]:
             raise not_found("收货地址不存在")
         return address.name, address.phone, f"{address.campus_area} {address.detail}".strip()
 
-    name = payload.text("receiver_name", required=False, max_len=30, label="联系人")
-    phone = payload.text("receiver_phone", required=False, max_len=11, label="联系电话")
+    name = payload.text("receiver_name", required=False, max_len=30, label="联系人", default=user.nickname)
+    phone = payload.text("receiver_phone", required=False, max_len=11, label="联系电话", default=user.phone)
     address_text = payload.text("address_text", required=False, max_len=200, label="交易地点")
     if not name or not phone:
         raise bad_request("请填写联系人与联系电话", {"receiver_name": "联系人不能为空"})
@@ -63,8 +66,14 @@ def _resolve_receiver(user, payload: Payload) -> tuple[str, str, str]:
 def _quote(user, payload: Payload) -> tuple[list[dict], dict]:
     """复用下单前的价格计算，保证预览与实付一致。"""
     items = _resolve_items(user, payload)
+    delivery_type = payload.choice(
+        "delivery_type", DeliveryType.ALL, required=False, default=DeliveryType.PICKUP, label="履约方式"
+    )
+    delivery_type = DeliveryType.normalize(delivery_type)
     total = Decimal("0.00")
     groups: dict[int, dict] = {}
+    pickup_enabled = True
+    express_enabled = True
     from backend.models import Product
 
     for item in items:
@@ -78,6 +87,12 @@ def _quote(user, payload: Payload) -> tuple[list[dict], dict]:
         quantity = int(item["quantity"])
         if quantity <= 0 or quantity > product.quantity:
             raise bad_request(f"《{product.name}》库存不足")
+        pickup_enabled = pickup_enabled and bool(product.supports_pickup)
+        express_enabled = express_enabled and bool(product.supports_express)
+        if delivery_type == DeliveryType.PICKUP and not product.supports_pickup:
+            raise bad_request(f"《{product.name}》不支持自提，请选择快递")
+        if delivery_type == DeliveryType.EXPRESS and not product.supports_express:
+            raise bad_request(f"《{product.name}》不支持快递，请选择自提")
         amount = (Decimal(product.price) * quantity).quantize(Decimal("0.01"))
         total += amount
         group = groups.setdefault(
@@ -87,6 +102,9 @@ def _quote(user, payload: Payload) -> tuple[list[dict], dict]:
                 "seller_name": product.seller.nickname if product.seller else "",
                 "items": [],
                 "amount": Decimal("0.00"),
+                "shipping_fee": Decimal("0.00"),
+                "pickup_location": "",
+                "pickup_locations": [],
             },
         )
         group["items"].append(
@@ -98,17 +116,50 @@ def _quote(user, payload: Payload) -> tuple[list[dict], dict]:
                 "quantity": quantity,
                 "subtotal": float(amount),
                 "cart_id": item.get("cart_id"),
+                "supports_pickup": product.supports_pickup,
+                "supports_express": product.supports_express,
+                "free_shipping": bool(product.free_shipping),
+                "shipping_fee": float(product.shipping_amount),
+                "pickup_location": product.pickup_location or "",
+                "delivery_labels": list(product.delivery_labels),
             }
         )
         group["amount"] += amount
+        if delivery_type == DeliveryType.EXPRESS:
+            group["shipping_fee"] = max(group["shipping_fee"], Decimal(product.shipping_amount))
+        elif product.pickup_location and product.pickup_location not in group["pickup_locations"]:
+            group["pickup_locations"].append(product.pickup_location)
+            if not group["pickup_location"]:
+                group["pickup_location"] = product.pickup_location
+
+    shipping_total = sum((group["shipping_fee"] for group in groups.values()), Decimal("0.00"))
+    payloads = []
+    for group in groups.values():
+        payloads.append(
+            {
+                **{
+                    key: value
+                    for key, value in group.items()
+                    if key not in ("amount", "shipping_fee")
+                },
+                "amount": float(group["amount"]),
+                "shipping_fee": float(group["shipping_fee"]),
+                "total_amount": float(group["amount"] + group["shipping_fee"]),
+            }
+        )
 
     return items, {
-        "groups": [
-            {**group, "amount": float(group["amount"])} for group in groups.values()
-        ],
+        "groups": payloads,
+        "delivery_type": delivery_type,
+        "pickup_addresses": sorted({loc for group in payloads for loc in group["pickup_locations"]}),
         "items_total": float(total),
-        "shipping_fee": 0.0,
-        "total_amount": float(total),
+        "shipping_fee": float(shipping_total),
+        "total_amount": float(total + shipping_total),
+        "pay_options": [{"value": item, "label": item} for item in PAY_METHODS_BY_DELIVERY.get(delivery_type, ())],
+        "delivery_options": [
+            {"value": DeliveryType.PICKUP, "label": "自提", "enabled": pickup_enabled},
+            {"value": DeliveryType.EXPRESS, "label": "快递", "enabled": express_enabled},
+        ],
     }
 
 
@@ -132,11 +183,19 @@ def create_order():
 
     payload = Payload(request.get_json(silent=True))
     source = payload.choice("source", ("cart", "now"), required=False, default="cart", label="下单来源")
-    pay_method = payload.choice("pay_method", (PayMethod.BALANCE, PayMethod.OFFLINE), label="支付方式")
-    delivery_type = payload.choice("delivery_type", DeliveryType.ALL, required=False, default=DeliveryType.PICKUP, label="履约方式")
+    delivery_type = payload.choice(
+        "delivery_type", DeliveryType.ALL, required=False, default=DeliveryType.PICKUP, label="履约方式"
+    )
+    delivery_type = DeliveryType.normalize(delivery_type)
+    pay_method = payload.choice("pay_method", PayMethod.SUPPORTED, label="支付方式")
     remark = payload.text("remark", required=False, max_len=200, label="备注")
+    pickup_time_raw = payload.text("pickup_time", required=False, max_len=32, label="自提时间")
+    try:
+        pickup_time = parse_local_datetime(pickup_time_raw)
+    except ValueError as exc:
+        raise bad_request(str(exc), {"pickup_time": "时间格式不正确"}) from exc
     items = _resolve_items(user, payload)
-    receiver_name, receiver_phone, address_text = _resolve_receiver(user, payload)
+    receiver_name, receiver_phone, address_text = _resolve_receiver(user, payload, delivery_type)
     payload.done()
 
     orders = order_service.create_orders(
@@ -148,6 +207,7 @@ def create_order():
         receiver_phone=receiver_phone,
         address_text=address_text,
         remark=remark,
+        pickup_time=pickup_time,
     )
 
     if source == "cart":
@@ -265,6 +325,32 @@ def refund(order_id: int):
     payload.done()
     order_service.request_refund(order, user, reason)
     return ok(_view(order, "buyer"), "退款申请已提交")
+
+
+@bp.post("/<int:order_id>/pickup-time")
+@login_required
+def set_pickup_time(order_id: int):
+    user = current_user()
+    order = _load(order_id)
+    payload = Payload(request.get_json(silent=True))
+    raw = payload.text("pickup_time", min_len=8, max_len=32, label="自提时间")
+    payload.done()
+    try:
+        when = parse_local_datetime(raw)
+    except ValueError as exc:
+        raise bad_request(str(exc), {"pickup_time": "时间格式不正确"}) from exc
+    order_service.set_pickup_time(order, user, when)
+    return ok(_view(order, "buyer"), "自提时间已确认")
+
+
+@bp.get("/<int:order_id>/snapshot")
+@login_required
+def order_snapshot(order_id: int):
+    user = current_user()
+    order = _load(order_id)
+    if user.id not in (order.user_id, order.seller_id):
+        raise forbidden("无权查看该订单快照")
+    return ok(snapshot_service.snapshot_payload(order))
 
 
 @bp.post("/<int:order_id>/cancel-refund")
