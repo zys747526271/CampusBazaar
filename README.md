@@ -30,6 +30,60 @@
 - **鉴权语义**：401 仅表示未认证，403 表示已认证无权限；用户令牌与管理令牌完全隔离
 - **审计留痕**：审核、下架、封禁、隐藏评价、退款处理全部落 `audit_logs` + 安全日志
 
+### 1.1 检索：按履约方式与包邮筛选
+
+买家不必点进详情就能判断「能不能拿到手」：侧栏支持「支持自提 / 支持快递 / 仅看包邮」三个筛选，商品卡片直接带自提、包邮、运费小标。
+
+![商品列表：自提/快递/包邮筛选与卡片履约小标](docs/assets/screenshots/01-list-filter.png)
+
+### 1.2 商品详情：履约与运费写清楚
+
+详情页把两种履约方式并列展示——自提点写在哪里、快递收多少运费、是否包邮，一眼可见，避免下单后才发现要跑一趟。
+
+![商品详情：履约说明区](docs/assets/screenshots/02-product-detail.png)
+
+### 1.3 结算：自提与快递是两套表单
+
+选「自提」只填自提点、自提时间与联系人，可线下支付；选「快递」不再手填联系人/电话/地址，只从地址簿选择（超过 4 条转下拉），并且只允许余额支付，运费自动计入应付金额。商品清单里的履约信息随所选方式变化，不会在快递订单里冒出「校内自提」。
+
+![结算页：自提态](docs/assets/screenshots/03-checkout-pickup.png)
+
+![结算页：快递态，仅地址簿与余额支付](docs/assets/screenshots/04-checkout-express.png)
+
+### 1.4 卖家发布：声明自提点，设置包邮或运费
+
+发布/编辑商品时新增「履约方式」区块：自提点可留空（后续补录）、快递必须明确包邮或填运费，前后端双重校验。
+
+![卖家商品编辑：履约方式与运费](docs/assets/screenshots/05-seller-product-form.png)
+
+### 1.5 卖家补录自提点
+
+发布时没填自提点的商品，买家下单后卖家订单页会出现「买家在等自提点」提示与「填自提点」入口；保存后系统推送站内消息给买家。
+
+![卖家订单：待补自提点的订单](docs/assets/screenshots/06-seller-orders-pickup.png)
+
+![卖家订单：补录自提点弹窗](docs/assets/screenshots/07-seller-pickup-modal.png)
+
+### 1.6 订单交易快照
+
+下单即固化商品介绍页与详情信息（图片内联进 HTML），商品后续改价、下架、删除都不影响这份凭证，纠纷时可作为取证依据。
+
+![订单详情：交易快照弹窗](docs/assets/screenshots/08-order-snapshot.png)
+
+### 1.7 店铺历史评价
+
+店铺主页汇总该卖家的**全部**历史评价，包含已售出、已下架商品；带评分分布、商品跳转与卖家回复，方便新买家判断店铺口碑。
+
+![店铺主页：历史评价](docs/assets/screenshots/09-shop-reviews.png)
+
+### 1.8 后台直接管理商品
+
+商家管理 →「查看商品」弹窗内，每行商品都有「管理」按钮，改状态、写下架原因、设首页推荐都在弹窗内完成，不必跳到商品审核页再找一遍。
+
+![后台商家管理：商品弹窗内的管理入口](docs/assets/screenshots/10-admin-seller-products.png)
+
+> 以上截图由 `python scripts/capture_screenshots.py` 从本地实例实拍生成（无头浏览器 + 演示数据），改动界面后可一条命令重拍。
+
 ## 2. 目录结构
 
 ```
@@ -58,7 +112,7 @@ CampusBazaar/
 │       └── views/           # 页面
 ├── migrations/              # Alembic 迁移（初始版本已生成）
 ├── tests/                   # pytest：状态机、库存、权限、治理
-├── scripts/                 # 冒烟测试、视觉巡检
+├── scripts/                 # 冒烟测试、接口巡检、README 截图脚本
 ├── docs/                    # 需求、架构、运行验收、API 契约
 ├── alembic.ini
 ├── requirements.txt
@@ -131,6 +185,9 @@ python scripts/visual_check.py
 ```bash
 python -m compileall -q backend
 cd frontend && npm run build
+
+# 界面改动后重拍 README 截图（需后端已在 127.0.0.1:5001 托管 dist）
+python scripts/capture_screenshots.py
 ```
 
 ## 5. 接口约定（摘要）

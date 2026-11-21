@@ -333,7 +333,12 @@ onMounted(async () => {
                 <p class="line-name clamp-2">{{ item.name }}</p>
                 <p class="text-xs text-muted">卖家：{{ item.seller_name }}</p>
                 <p class="text-xs text-muted">
-                  {{ (item.delivery_labels || []).join(' · ') }}<template v-if="item.supports_express && !item.free_shipping"> · 运费 ¥{{ money(item.shipping_fee) }}</template>
+                  <template v-if="form.deliveryType === '快递'">
+                    快递 · {{ item.free_shipping ? '包邮' : `运费 ¥${money(item.shipping_fee)}` }}
+                  </template>
+                  <template v-else>
+                    自提{{ item.pickup_location ? ` · ${item.pickup_location}` : ' · 卖家稍后补充自提点' }}
+                  </template>
                 </p>
               </div>
               <div class="line-price">
