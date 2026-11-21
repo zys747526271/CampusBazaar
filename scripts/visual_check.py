@@ -146,6 +146,16 @@ def main() -> int:
                 timeout=10,
             )
 
+        # 保证有收货地址，便于截取快递结算态
+        existing = requests.get(f"{BASE}/api/addresses", headers=headers, timeout=10).json()["data"]["items"]
+        if not existing:
+            requests.post(
+                f"{BASE}/api/addresses",
+                json={"name": "赵一鸣", "phone": buyer, "campus_area": "东校区", "detail": "1 栋 102", "is_default": True},
+                headers=headers,
+                timeout=10,
+            )
+
         cdp.eval(f"localStorage.setItem('cb_token', '{buyer_token}'); true", await_promise=False)
 
         pages = [
@@ -165,6 +175,11 @@ def main() -> int:
             cdp.goto(f"{BASE}{path}")
             cdp.shot(OUT / f"{name}.png", height)
             print("截图", name)
+            if name == "checkout":
+                cdp.eval("[...document.querySelectorAll('.choice')].find(b => b.textContent.includes('快递'))?.click(); true")
+                time.sleep(1.8)
+                cdp.shot(OUT / "checkout-express.png", 1100)
+                print("截图 checkout-express")
 
         # 卖家视角
         seller_token = api_login("/auth/login", {"phone": seller, "password": accounts["phones"][seller]})
@@ -179,6 +194,11 @@ def main() -> int:
             cdp.goto(f"{BASE}{path}")
             cdp.shot(OUT / f"{name}.png", height)
             print("截图", name)
+            if name == "checkout":
+                cdp.eval("[...document.querySelectorAll('.choice')].find(b => b.textContent.includes('快递'))?.click(); true")
+                time.sleep(1.8)
+                cdp.shot(OUT / "checkout-express.png", 1100)
+                print("截图 checkout-express")
 
         # 管理员
         admin_token = api_login("/auth/admin/login", {"username": "admin", "password": accounts["admin"]})
@@ -194,6 +214,11 @@ def main() -> int:
             cdp.goto(f"{BASE}{path}")
             cdp.shot(OUT / f"{name}.png", height)
             print("截图", name)
+            if name == "checkout":
+                cdp.eval("[...document.querySelectorAll('.choice')].find(b => b.textContent.includes('快递'))?.click(); true")
+                time.sleep(1.8)
+                cdp.shot(OUT / "checkout-express.png", 1100)
+                print("截图 checkout-express")
 
         # 清理预置购物车，避免污染演示数据
         requests.delete(f"{BASE}/api/carts", headers=headers, timeout=10)

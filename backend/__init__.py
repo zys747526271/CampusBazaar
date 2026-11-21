@@ -16,7 +16,7 @@ from backend.extensions import cache, db
 from backend.utils.logging import install_request_hooks, setup_logging
 from backend.utils.response import respond
 
-__version__ = "2.0.0"
+__version__ = "2.2.0"
 
 
 def create_app(config_object=None, overrides: dict | None = None) -> Flask:
