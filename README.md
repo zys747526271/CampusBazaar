@@ -19,6 +19,22 @@
 | 卖家 | 一键开通卖家、发布/编辑/上下架/删除商品、多图上传、自定义分类、声明自提点与运费、补录自提点、确认收款、发货、处理退款、经营看板、回复评价 |
 | 管理员 | 独立登录与锁定、控制台数据、用户封禁/解封/重置密码、商家与商品审核（列表内直接管理）、批量通过/下架、评价隐藏、订单介入、平台分类、首页轮播、举报处理、操作审计、CSV 导出 |
 
+### 界面速览
+
+以下截图均为本地演示数据的真实页面（`python -m backend.dev --serve-dist` 后实拍），非设计稿。
+
+| 首页 · 分类导航与推荐位 | 商品浏览 · 自提/快递/包邮筛选 |
+| :--: | :--: |
+| ![首页](docs/assets/screenshots/00-home.png) | ![商品列表](docs/assets/screenshots/01-list-filter.png) |
+
+| 商品详情 · 履约与运费写明 | 确认订单 · 快递只走地址簿、运费计入 |
+| :--: | :--: |
+| ![商品详情](docs/assets/screenshots/02-product-detail.png) | ![结算页](docs/assets/screenshots/04-checkout-express.png) |
+
+| 订单交易快照 · 纠纷取证 | 店铺主页 · 全部历史评价 |
+| :--: | :--: |
+| ![交易快照](docs/assets/screenshots/08-order-snapshot.png) | ![店铺评价](docs/assets/screenshots/09-shop-reviews.png) |
+
 关键机制：
 
 - **双分类体系**：平台分类（买家怎么找）+ 卖家私有分类（卖家怎么管）
@@ -34,21 +50,15 @@
 
 买家不必点进详情就能判断「能不能拿到手」：侧栏支持「支持自提 / 支持快递 / 仅看包邮」三个筛选，商品卡片直接带自提、包邮、运费小标。
 
-![商品列表：自提/快递/包邮筛选与卡片履约小标](docs/assets/screenshots/01-list-filter.png)
-
 ### 1.2 商品详情：履约与运费写清楚
 
 详情页把两种履约方式并列展示——自提点写在哪里、快递收多少运费、是否包邮，一眼可见，避免下单后才发现要跑一趟。
-
-![商品详情：履约说明区](docs/assets/screenshots/02-product-detail.png)
 
 ### 1.3 结算：自提与快递是两套表单
 
 选「自提」只填自提点、自提时间与联系人，可线下支付；选「快递」不再手填联系人/电话/地址，只从地址簿选择（超过 4 条转下拉），并且只允许余额支付，运费自动计入应付金额。商品清单里的履约信息随所选方式变化，不会在快递订单里冒出「校内自提」。
 
 ![结算页：自提态](docs/assets/screenshots/03-checkout-pickup.png)
-
-![结算页：快递态，仅地址簿与余额支付](docs/assets/screenshots/04-checkout-express.png)
 
 ### 1.4 卖家发布：声明自提点，设置包邮或运费
 
@@ -68,13 +78,9 @@
 
 下单即固化商品介绍页与详情信息（图片内联进 HTML），商品后续改价、下架、删除都不影响这份凭证，纠纷时可作为取证依据。
 
-![订单详情：交易快照弹窗](docs/assets/screenshots/08-order-snapshot.png)
-
 ### 1.7 店铺历史评价
 
 店铺主页汇总该卖家的**全部**历史评价，包含已售出、已下架商品；带评分分布、商品跳转与卖家回复，方便新买家判断店铺口碑。
-
-![店铺主页：历史评价](docs/assets/screenshots/09-shop-reviews.png)
 
 ### 1.8 后台直接管理商品
 
@@ -82,7 +88,7 @@
 
 ![后台商家管理：商品弹窗内的管理入口](docs/assets/screenshots/10-admin-seller-products.png)
 
-> 以上截图由 `python scripts/capture_screenshots.py` 从本地实例实拍生成（无头浏览器 + 演示数据），改动界面后可一条命令重拍。
+> 文中截图（速览 6 张 + 功能细节 5 张）全部由 `python scripts/capture_screenshots.py` 从本地实例实拍生成（无头浏览器 + 演示数据），改动界面后一条命令即可重拍。
 
 ## 2. 目录结构
 

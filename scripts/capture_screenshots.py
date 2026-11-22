@@ -215,6 +215,12 @@ def main() -> int:
             cdp.shot(TMP / f"{name}.png")
             print("拍摄", name)
 
+        # 0. 首页：轮播、分类导航与推荐位（未登录态，即新访客所见）
+        cdp.goto("/", 2.8)
+        cdp.eval("window.scrollTo(0,0); true")
+        time.sleep(0.8)
+        capture("00-home", 1320)
+
         # 1. 列表页：履约筛选 + 卡片小标
         use(buyer_token, "cb_token")
         cdp.goto("/products")
