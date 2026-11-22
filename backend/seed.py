@@ -345,8 +345,8 @@ def seed_demo_data() -> dict:
 
     print("\n演示数据就绪：")
     print(f"  平台分类 {len(TAGS)} 个 · 商品 {len(PRODUCTS)} 件 · 演示订单 {stats['orders']} 笔")
-    print("  买家账号 13800000004 / 13800000005  密码：Campus123")
-    print("  卖家账号 13800000001 / 13800000002 / 13800000003  密码：Campus123")
+    print(f"  买家账号 13800000004 / 13800000005  密码：{DEMO_PASSWORD}")
+    print(f"  卖家账号 13800000001 / 13800000002 / 13800000003  密码：{DEMO_PASSWORD}")
     print(f"  管理员 admin / {ADMIN_PASSWORD}")
     account_file = _write_accounts_file()
     print(f"  账号密码已写入 {account_file}\n")
